@@ -138,7 +138,6 @@
         function onSessionStart() {
             document.getElementById('title-container').style.display = 'none';
             setupControllers();
-            setupVRUI();
         }
 
         function onSessionEnd() {
@@ -152,15 +151,37 @@
         function setupControllers() {
             const controllerModelFactory = new XRControllerModelFactory();
 
+            // VR UIコンテナをコントローラーのセットアップ時に作成
+            vrUIContainer = new THREE.Group();
+            
+            const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x4A5568, transparent: true, opacity: 0.8 });
+            const panelGeometry = new THREE.PlaneGeometry(0.5, 0.4);
+            const panelMesh = new THREE.Mesh(panelGeometry, panelMaterial);
+            panelMesh.position.z = -0.01;
+            vrUIContainer.add(panelMesh);
+            
+            const addButton = createVRButton(0.2, 0.08, 0x1E90FF, '追加', () => {
+                console.log('追加ボタンが押されました');
+            });
+            addButton.position.set(0, 0.1, 0);
+            vrUIContainer.add(addButton);
+            
             // 利き手でないコントローラー（0番）
             controller1 = renderer.xr.getController(0);
             controller1.addEventListener('selectstart', onSelectStart);
             controller1.addEventListener('selectend', onSelectEnd);
             scene.add(controller1);
-            
-            const controllerGrip1 = renderer.xr.getControllerGrip(0);
+
+            controllerGrip1 = renderer.xr.getControllerGrip(0);
             controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
             scene.add(controllerGrip1);
+
+            // コントローラー1にUIパネルを追従させる
+            if (controller1) {
+                controller1.add(vrUIContainer);
+                vrUIContainer.position.set(-0.15, 0.1, -0.2);
+                vrUIContainer.rotation.y = Math.PI / 4;
+            }
 
             // 利き手（1番）
             controller2 = renderer.xr.getController(1);
@@ -172,30 +193,7 @@
             controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
             scene.add(controllerGrip2);
         }
-        
-        function setupVRUI() {
-            vrUIContainer = new THREE.Group();
 
-            const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x4A5568, transparent: true, opacity: 0.8 });
-            const panelGeometry = new THREE.PlaneGeometry(0.5, 0.4);
-            const panelMesh = new THREE.Mesh(panelGeometry, panelMaterial);
-            panelMesh.position.z = -0.01;
-            vrUIContainer.add(panelMesh);
-
-            const addButton = createVRButton(0.2, 0.08, 0x1E90FF, '追加', () => {
-                console.log('追加ボタンが押されました');
-            });
-            addButton.position.set(0, 0.1, 0);
-            vrUIContainer.add(addButton);
-
-            const nonDominantController = renderer.xr.getController(0);
-            if (nonDominantController) {
-                nonDominantController.add(vrUIContainer);
-                vrUIContainer.position.set(-0.15, 0.1, -0.2);
-                vrUIContainer.rotation.y = Math.PI / 4;
-            }
-        }
-        
         function createVRButton(width, height, color, label, onClick) {
             const group = new THREE.Group();
             const texture = createButtonTexture(width * 256, height * 256, label);

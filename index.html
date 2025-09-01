@@ -98,7 +98,7 @@
         let lastControllerPosition = new THREE.Vector3();
 
         const placedObjects = [];
-        let intersected = [];
+        let hoveredObject = null;
 
         // 家具データ（URLはダミー）
         const furnitureData = [
@@ -181,8 +181,8 @@
                 new THREE.Vector3(0, 0, -1)
             ]);
             const controllerLine = new THREE.Line(controllerGeometry, controllerMaterial);
-            controllerLine.scale.z = 0; // 初期状態では非表示
-            controller1.add(controllerLine.clone()); // レイキャスト用のラインをコントローラーの子にする
+            controllerLine.scale.z = 0;
+            controller1.add(controllerLine.clone());
             
             controllerGrip1 = renderer.xr.getControllerGrip(0);
             controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
@@ -237,6 +237,7 @@
             const texture = createButtonTexture(width * 256, height * 256, label);
             const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, color: color });
             const buttonMesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
+            buttonMesh.userData.originalColor = new THREE.Color(color);
             group.add(buttonMesh);
 
             group.userData.onClick = onClick;
@@ -286,6 +287,7 @@
         function onObjectSelectStart(event) {
             const controller = event.target;
 
+            // VR UIパネルとの交差判定を優先
             tempMatrix.identity().extractRotation(controller.matrixWorld);
             raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
             raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
@@ -322,7 +324,6 @@
         function render() {
             const session = renderer.xr.getSession();
             if (session) {
-                // レイキャストの更新とUIとのホバー判定
                 handleInteractions(controller1);
                 handleInteractions(controller2);
 
@@ -353,37 +354,35 @@
             renderer.render(scene, camera);
         }
         
-        // 交差判定とホバー効果を処理する関数
         function handleInteractions(controller) {
+            const line = controller.children[0];
+            
             tempMatrix.identity().extractRotation(controller.matrixWorld);
             raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
             raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
-            // VR UIパネルとの交差判定
             const intersections = raycaster.intersectObjects(vrUIContainer.children, true);
             
             if (intersections.length > 0) {
                 const intersection = intersections[0];
                 const object = intersection.object.parent;
-                if (object.userData.onClick) {
-                    object.children[0].material.color.setHex(0xaaaaaa); // ホバー時
-                }
-            } else {
-                // ホバーが外れたオブジェクトの色を元に戻す
-                vrUIContainer.traverse((child) => {
-                    if (child.isMesh && child.userData.onClick) {
-                        child.material.color.setHex(child.userData.originalColor || 0xffffff);
+                
+                if (object !== hoveredObject) {
+                    if (hoveredObject) {
+                        hoveredObject.children[0].material.color.copy(hoveredObject.children[0].userData.originalColor);
                     }
-                });
-            }
-
-            // レイキャストの長さを更新して視覚化
-            const line = controller.children[0];
-            if (intersections.length > 0) {
-                const distance = intersections[0].distance;
-                line.scale.z = distance;
+                    hoveredObject = object;
+                    hoveredObject.children[0].material.color.setHex(0xaaaaaa);
+                }
+                
+                line.scale.z = intersection.distance;
             } else {
-                line.scale.z = 5; // 何も当たらないときは長く表示
+                if (hoveredObject) {
+                    hoveredObject.children[0].material.color.copy(hoveredObject.children[0].userData.originalColor);
+                    hoveredObject = null;
+                }
+                
+                line.scale.z = 5;
             }
         }
         

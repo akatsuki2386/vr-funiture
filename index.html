@@ -68,224 +68,225 @@
         import { VRButton } from 'three/addons/webxr/VRButton.js';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+        import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+        import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+
+        // グローバル変数
+        let camera, scene, renderer;
+        const loader = new GLTFLoader();
+        const preloadedModels = new Map();
+        const placedObjects = [];
+        const raycaster = new THREE.Raycaster();
+        let selectedObject = null;
+        let hoveredObject = null;
+        let appState = 'IDLE';
+        let isEditMode = false;
+        
+        const objectsToDelete = [];
+        const clock = new THREE.Clock();
+        
+        let controller0, controller1;
+        let vrUiPanel;
+
+        // モデルデータ（今回は使わないが、ロード時間短縮のためにコメントアウト）
+        const furnitureData = [
+            // { name: 'イス(生成AI)', file: 'AI_chiar.glb', height: 0.79, category: 'チェア', thumbnail: 'thumbnails/chair_thumb.png' },
+            // { name: 'イス(フォトグラメトリ)', file: 'photochair.glb', height: 0.79, category: 'チェア', thumbnail: 'thumbnails/chair_thumb.png' },
+            // ... 他のモデル ...
+        ];
 
         function main() {
             setupWebXR();
         }
 
         function setupWebXR() {
-            let camera, scene, renderer;
-            const loader = new GLTFLoader();
-            const preloadedModels = new Map();
-            const placedObjects = [];
-            const raycaster = new THREE.Raycaster();
-            let selectedObject = null;
-            let hoveredObject = null;
-            let appState = 'IDLE';
-            let isEditMode = false;
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+            scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 3));
+
+            renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                alpha: true,
+            });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
+            document.body.appendChild(renderer.domElement);
             
-            const objectsToDelete = [];
-            const clock = new THREE.Clock();
+            renderer.xr.addEventListener('sessionstart', () => {
+                document.getElementById('title-container').style.display = 'none';
+                document.getElementById('overlay').style.pointerEvents = 'none';
+                resetScene();
+                isEditMode = true;
+                initializeVRExperience();
+                // preloadModels(); // ロード時間短縮のため、ここでは呼ばない
+            });
+
+            renderer.xr.addEventListener('sessionend', () => {
+                document.getElementById('title-container').style.display = 'block';
+                document.getElementById('overlay').style.pointerEvents = 'auto';
+                resetScene();
+            });
+
+            animate();
+
+            document.body.appendChild(VRButton.createButton(renderer, {
+                requiredFeatures: ['local-floor'],
+            }));
+        }
+        
+        function createVrUiPanel() {
+            const panelGroup = new THREE.Group();
             
-            let controller0, controller1;
-            let vrUiPanel;
+            const panelGeometry = new THREE.PlaneGeometry(0.3, 0.4);
+            const panelMaterial = new THREE.MeshBasicMaterial({
+                color: 0x2d3748,
+                transparent: true,
+                opacity: 0.8,
+                side: THREE.DoubleSide
+            });
+            const panelMesh = new THREE.Mesh(panelGeometry, panelMaterial);
+            panelMesh.position.set(0, 0.1, -0.3);
+            panelMesh.rotation.x = -Math.PI / 8;
+            panelGroup.add(panelMesh);
 
-            init();
+            // ボタンのテクスチャを生成するためのCanvas
+            const createButtonTexture = (text) => {
+                const size = 128;
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const context = canvas.getContext('2d');
+                context.fillStyle = '#4299e1';
+                context.fillRect(0, 0, size, size);
+                context.fillStyle = 'white';
+                context.font = 'bold 64px sans-serif';
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+                context.fillText(text, size / 2, size / 2);
+                return new THREE.CanvasTexture(canvas);
+            };
             
-            function preloadModels() {
-                const loadingPromises = [
-                    { name: 'イス(生成AI)', file: 'AI_chiar.glb', height: 0.79, category: 'チェア', thumbnail: 'thumbnails/chair_thumb.png' },
-                    { name: 'イス(フォトグラメトリ)', file: 'photochair.glb', height: 0.79, category: 'チェア', thumbnail: 'thumbnails/chair_thumb.png' },
-                    { name: '本棚', file: 'bookshelf.glb', height: 1.8, category: '収納', thumbnail: 'thumbnails/bookshelf_thumb.png' },
-                    { name: '脚立', file: 'stand.glb', height: 1.2, category: 'その他', thumbnail: 'thumbnails/stand_thumb.png' },
-                ].map(item => {
-                    return new Promise((resolve, reject) => {
-                        loader.load(item.file, (gltf) => {
-                            preloadedModels.set(item.file, gltf);
-                            resolve();
-                        }, undefined, reject);
-                    });
-                });
-                Promise.all(loadingPromises)
-                    .then(() => console.log("すべてのモデルの事前読み込みが完了しました！"))
-                    .catch(error => console.error("モデルの事前読み込み中にエラーが発生しました。", error));
-            }
-
-            function resetScene() {
-                placedObjects.forEach(object => scene.remove(object));
-                placedObjects.length = 0;
-                
-                if (previewObject) scene.remove(previewObject);
-                previewObject = null;
-                selectedObject = null;
-                hoveredObject = null;
-                
-                appState = 'IDLE';
-                isEditMode = false;
-            }
-
-            function init() {
-                scene = new THREE.Scene();
-                camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-                scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 3));
-
-                renderer = new THREE.WebGLRenderer({
-                    antialias: true,
-                    alpha: true,
-                });
-                renderer.setPixelRatio(window.devicePixelRatio);
-                renderer.setSize(window.innerWidth, window.innerHeight);
-                renderer.xr.enabled = true;
-                document.body.appendChild(renderer.domElement);
-                
-                renderer.xr.addEventListener('sessionstart', () => {
-                    document.getElementById('title-container').style.display = 'none';
-                    document.getElementById('overlay').style.pointerEvents = 'none';
-                    resetScene();
-                    isEditMode = true;
-                    initializeVRExperience();
-                    preloadModels();
-                });
-
-                renderer.xr.addEventListener('sessionend', () => {
-                    document.getElementById('title-container').style.display = 'block';
-                    document.getElementById('overlay').style.pointerEvents = 'auto';
-                    resetScene();
-                });
-
-                animate();
-
-                document.body.appendChild(VRButton.createButton(renderer, {
-                    requiredFeatures: ['local-floor'],
-                }));
-            }
+            // 「Add」ボタンの作成
+            const addButtonTexture = createButtonTexture('+');
+            const addButtonMaterial = new THREE.MeshBasicMaterial({ map: addButtonTexture });
+            const addButtonGeometry = new THREE.BoxGeometry(0.08, 0.08, 0.01);
+            const addButton = new THREE.Mesh(addButtonGeometry, addButtonMaterial);
+            addButton.position.set(0, 0, -0.29);
+            addButton.name = 'addButton';
+            panelGroup.add(addButton);
             
-            function createVrUiPanel() {
-                const panelGroup = new THREE.Group();
-                
-                const panelGeometry = new THREE.PlaneGeometry(0.3, 0.4);
-                const panelMaterial = new THREE.MeshBasicMaterial({
-                    color: 0x2d3748,
-                    transparent: true,
-                    opacity: 0.8,
-                    side: THREE.DoubleSide
-                });
-                const panelMesh = new THREE.Mesh(panelGeometry, panelMaterial);
-                panelMesh.position.set(0, 0, -0.2);
-                panelMesh.rotation.x = Math.PI / 4;
-                panelGroup.add(panelMesh);
-                
-                const buttonGeometry = new THREE.BoxGeometry(0.1, 0.05, 0.02);
-                const buttonMaterial = new THREE.MeshBasicMaterial({ color: 0x4299e1 });
-                const addButton = new THREE.Mesh(buttonGeometry, buttonMaterial);
-                addButton.position.set(0, -0.1, -0.19);
-                addButton.name = 'addButton';
-                panelGroup.add(addButton);
-                
-                return panelGroup;
-            }
+            return panelGroup;
+        }
 
-            function initializeVRExperience() {
-                controller0 = renderer.xr.getController(0);
-                controller1 = renderer.xr.getController(1);
-                scene.add(controller0);
-                scene.add(controller1);
+        function initializeVRExperience() {
+            controller0 = renderer.xr.getController(0);
+            controller1 = renderer.xr.getController(1);
+            scene.add(controller0);
+            scene.add(controller1);
 
-                const controllerModelFactory = new XRControllerModelFactory();
-                const controllerGrip0 = renderer.xr.getControllerGrip(0);
-                controllerGrip0.add(controllerModelFactory.createControllerModel(controllerGrip0));
-                scene.add(controllerGrip0);
+            const controllerModelFactory = new XRControllerModelFactory();
+            const controllerGrip0 = renderer.xr.getControllerGrip(0);
+            controllerGrip0.add(controllerModelFactory.createControllerModel(controllerGrip0));
+            scene.add(controllerGrip0);
 
-                const controllerGrip1 = renderer.xr.getControllerGrip(1);
-                controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
-                scene.add(controllerGrip1);
+            const controllerGrip1 = renderer.xr.getControllerGrip(1);
+            controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
+            scene.add(controllerGrip1);
 
-                const geometry = new THREE.BufferGeometry().setFromPoints([
-                    new THREE.Vector3(0, 0, 0),
-                    new THREE.Vector3(0, 0, -1)
-                ]);
-                const line = new THREE.Line(geometry);
-                line.name = 'line';
-                line.scale.z = 5;
-                
-                const line0 = line.clone();
-                controller0.add(line0);
-                
-                const line1 = line.clone();
-                controller1.add(line1);
+            const geometry = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(0, 0, -1)
+            ]);
+            const line = new THREE.Line(geometry);
+            line.name = 'line';
+            line.scale.z = 5;
+            
+            const line0 = line.clone();
+            controller0.add(line0);
+            
+            const line1 = line.clone();
+            controller1.add(line1);
 
-                // UIパネルの作成とコントローラーへのアタッチ
-                vrUiPanel = createVrUiPanel();
-                controller1.add(vrUiPanel);
+            vrUiPanel = createVrUiPanel();
+            controller1.add(vrUiPanel);
 
-                controller0.addEventListener('selectstart', onSelectStart);
-                controller0.addEventListener('selectend', onSelectEnd);
-                
-                controller1.addEventListener('selectstart', onSelectStart);
-                controller1.addEventListener('selectend', onSelectEnd);
-            }
+            controller0.addEventListener('selectstart', onSelectStart);
+            controller0.addEventListener('selectend', onSelectEnd);
+            
+            controller1.addEventListener('selectstart', onSelectStart);
+            controller1.addEventListener('selectend', onSelectEnd);
+        }
 
-            function onSelectStart(event) {
-                console.log("Select start event triggered");
-            }
+        function onSelectStart(event) {
+            console.log("Select start event triggered");
+        }
 
-            function onSelectEnd(event) {
-                console.log("Select end event triggered");
-            }
+        function onSelectEnd(event) {
+            console.log("Select end event triggered");
+        }
 
-            function setObjectTransparency(object, isTransparent, opacity = 0.7) {
-                if (!object) return;
-                object.traverse(child => {
-                    if (child.isMesh) {
-                        child.material.transparent = true;
-                        child.material.opacity = isTransparent ? opacity : 1.0;
-                    }
-                });
-            }
+        function resetScene() {
+            placedObjects.forEach(object => scene.remove(object));
+            placedObjects.length = 0;
+            
+            if (previewObject) scene.remove(previewObject);
+            previewObject = null;
+            selectedObject = null;
+            hoveredObject = null;
+            
+            appState = 'IDLE';
+            isEditMode = false;
+        }
 
-            function updateUI() {
-                // VR版ではDOM UIがないため、この関数は事実上不要
-            }
-
-            function animate() {
-                renderer.setAnimationLoop(render);
-            }
-
-            function render() {
-                if (!renderer.xr.isPresenting) {
-                    return;
+        function setObjectTransparency(object, isTransparent, opacity = 0.7) {
+            if (!object) return;
+            object.traverse(child => {
+                if (child.isMesh) {
+                    child.material.transparent = true;
+                    child.material.opacity = isTransparent ? opacity : 1.0;
                 }
-                
-                // ホバー状態の処理
-                const targetRay = controller0;
-                const tempMatrix = new THREE.Matrix4();
-                tempMatrix.identity().extractRotation(targetRay.matrixWorld);
-                raycaster.ray.origin.setFromMatrixPosition(targetRay.matrixWorld);
-                raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+            });
+        }
 
-                // ここにUIパネルのホバーロジックを実装していく
-                const intersects = raycaster.intersectObject(vrUiPanel, true);
-                if (intersects.length > 0) {
-                    const intersectedObject = intersects[0].object;
-                    if (intersectedObject.name === 'addButton') {
-                        // ホバー時の処理 (色の変更など)
-                        if (intersectedObject.material.color.getHex() !== 0x42f567) {
-                            intersectedObject.material.color.setHex(0x42f567);
-                        }
-                    }
-                } else {
-                    // ホバーが外れたときの処理
-                    const addButton = vrUiPanel.getObjectByName('addButton');
-                    if (addButton && addButton.material.color.getHex() !== 0x4299e1) {
-                        addButton.material.color.setHex(0x4299e1);
+        function updateUI() {
+            // VR版ではDOM UIがないため、この関数は事実上不要
+        }
+
+        function animate() {
+            renderer.setAnimationLoop(render);
+        }
+
+        function render() {
+            if (!renderer.xr.isPresenting) {
+                return;
+            }
+            
+            const targetRay = controller0;
+            const tempMatrix = new THREE.Matrix4();
+            tempMatrix.identity().extractRotation(targetRay.matrixWorld);
+            raycaster.ray.origin.setFromMatrixPosition(targetRay.matrixWorld);
+            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+
+            const intersects = raycaster.intersectObject(vrUiPanel, true);
+            const addButton = vrUiPanel.getObjectByName('addButton');
+
+            if (intersects.length > 0) {
+                const intersectedObject = intersects[0].object;
+                if (intersectedObject.name === 'addButton') {
+                    if (addButton.material.color.getHex() !== 0x5a67d8) {
+                        addButton.material.color.setHex(0x5a67d8);
                     }
                 }
-
-                renderer.render(scene, camera);
+            } else {
+                if (addButton && addButton.material.color.getHex() !== 0x4299e1) {
+                    addButton.material.color.setHex(0x4299e1);
+                }
             }
+
+            renderer.render(scene, camera);
         }
         main();
     </script>
 </body>
 </html>
-

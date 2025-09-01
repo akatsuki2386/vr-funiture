@@ -57,8 +57,8 @@
             width: 100%;
             height: 100%;
             z-index: 10;
-            pointer-events: none; /* 初期状態ではクリック無効 */
-            display: none; /* VR起動まで非表示 */
+            pointer-events: none;
+            display: none;
         }
     </style>
 </head>
@@ -68,7 +68,7 @@
     </div>
 
     <div id="ui-overlay">
-        </div>
+    </div>
 
     <script type="importmap">
         {
@@ -127,12 +127,11 @@
 
             document.body.appendChild(VRButton.createButton(renderer, {
                 requiredFeatures: ['local-floor'],
-                optionalFeatures: ['hand-tracking'] // ハンドトラッキングも考慮
+                optionalFeatures: ['hand-tracking']
             }));
 
             raycaster = new THREE.Raycaster();
 
-            // コントローラーのセットアップ
             setupControllers();
 
             renderer.xr.addEventListener('sessionstart', onSessionStart);
@@ -154,15 +153,12 @@
         function onSessionStart() {
             document.getElementById('title-container').style.display = 'none';
             document.getElementById('ui-overlay').style.display = 'block';
-
-            // VR UIをセットアップ
             setupVRUI();
         }
 
         function onSessionEnd() {
             document.getElementById('title-container').style.display = 'block';
             document.getElementById('ui-overlay').style.display = 'none';
-            // VR UIをシーンから削除
             if (vrUIContainer) {
                 if (controller1) controller1.remove(vrUIContainer);
                 if (controller2) controller2.remove(vrUIContainer);
@@ -172,7 +168,7 @@
         function setupControllers() {
             const controllerModelFactory = new XRControllerModelFactory();
 
-            // 利き手でないコントローラー（0番）をUIパネル用に設定
+            // 利き手でないコントローラー（0番）
             controller1 = renderer.xr.getController(0);
             controller1.addEventListener('selectstart', onSelectStart);
             controller1.addEventListener('selectend', onSelectEnd);
@@ -182,7 +178,7 @@
             controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
             scene.add(controllerGrip1);
 
-            // 利き手（1番）をオブジェクト操作用に設定
+            // 利き手（1番）
             controller2 = renderer.xr.getController(1);
             controller2.addEventListener('selectstart', onObjectSelectStart);
             controller2.addEventListener('selectend', onObjectSelectEnd);
@@ -204,47 +200,62 @@
             panelMesh.position.z = -0.01;
             vrUIContainer.add(panelMesh);
 
-            // ボタンの追加
+            // ボタンの追加（3Dテキストの代わりにキャンバスでテクスチャを生成）
             const addButton = createVRButton(0.2, 0.08, 0x1E90FF, '追加', () => {
-                // 家具選択パネルを開くロジック
                 console.log('追加ボタンが押されました');
                 openFurnitureModal();
             });
             addButton.position.set(0, 0.1, 0);
             vrUIContainer.add(addButton);
 
-            // VR UIパネルを利き手でない方のコントローラーの子にする
+            // 利き手ではないコントローラーに追従させる
             const nonDominantController = renderer.xr.getController(0);
-            nonDominantController.add(vrUIContainer);
-            vrUIContainer.position.set(-0.15, 0.1, -0.2);
-            vrUIContainer.rotation.y = Math.PI / 4;
+            if (nonDominantController) {
+                nonDominantController.add(vrUIContainer);
+                vrUIContainer.position.set(-0.15, 0.1, -0.2);
+                vrUIContainer.rotation.y = Math.PI / 4;
+            } else {
+                // コントローラーが片方しかない場合を考慮
+                renderer.xr.getController(1).add(vrUIContainer);
+                vrUIContainer.position.set(-0.15, 0.1, -0.2);
+                vrUIContainer.rotation.y = Math.PI / 4;
+            }
         }
 
         function createVRButton(width, height, color, label, onClick) {
             const group = new THREE.Group();
-            const geometry = new THREE.PlaneGeometry(width, height);
-            const material = new THREE.MeshBasicMaterial({ color: color });
-            const buttonMesh = new THREE.Mesh(geometry, material);
+            
+            // テクスチャ付きのボタンメッシュ
+            const texture = createButtonTexture(width * 256, height * 256, label);
+            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, color: color });
+            const buttonMesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
             group.add(buttonMesh);
-
-            // テキストの追加（簡易版）
-            const textGeometry = new THREE.TextGeometry(label, {
-                font: new THREE.Font(THREE.TextGeometry.Utils.is(THREE.TextGeometry)), // 適切なフォントを設定
-                size: 0.05,
-                height: 0.01
-            });
-            const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-            const textMesh = new THREE.Mesh(textGeometry, textMaterial);
-            textMesh.position.z = 0.01;
-            group.add(textMesh);
 
             group.userData.onClick = onClick;
             return group;
         }
 
+        function createButtonTexture(width, height, label) {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d');
+            
+            // 背景色
+            context.fillStyle = '#FFFFFF';
+            context.fillRect(0, 0, width, height);
+
+            // テキスト
+            context.fillStyle = '#000000';
+            context.font = `bold ${height * 0.5}px sans-serif`;
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(label, width / 2, height / 2);
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
         function openFurnitureModal() {
-            // 家具選択モーダルをVR空間に表示するロジック
-            // この例ではコンソールログのみ
             console.log('家具選択モーダルを開きます。');
         }
 
@@ -257,7 +268,7 @@
             const intersections = raycaster.intersectObjects(vrUIContainer.children, true);
             if (intersections.length > 0) {
                 const intersection = intersections[0];
-                const button = intersection.object.parent; // 親グループ（ボタンオブジェクト）を取得
+                const button = intersection.object.parent;
                 if (button && button.userData.onClick) {
                     button.userData.onClick();
                 }
@@ -296,7 +307,6 @@
         function render() {
             const session = renderer.xr.getSession();
             if (session) {
-                // コントローラーが家具を掴んでいる場合の移動ロジック
                 if (selectedObject && controller2.userData.isDragging) {
                     const currentControllerPosition = new THREE.Vector3();
                     currentControllerPosition.setFromMatrixPosition(controller2.matrixWorld);
@@ -308,13 +318,11 @@
                     lastControllerPosition.copy(currentControllerPosition);
                 }
 
-                // 拡縮・回転のロジックをここに追加
-                // 例：ジョイスティックの入力に応じて拡縮・回転
                 const inputSource = controller2.userData.inputSource;
                 if (inputSource) {
                     const axes = inputSource.gamepad.axes;
-                    const rotateSpeed = axes[2] * 0.05; // ジョイスティックの左右
-                    const scaleChange = axes[3] * 0.01; // ジョイスティックの前後
+                    const rotateSpeed = axes[2] * 0.05;
+                    const scaleChange = axes[3] * 0.01;
 
                     if (selectedObject) {
                         selectedObject.rotation.y += rotateSpeed;

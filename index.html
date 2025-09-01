@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>VR家具配置シミュレーション</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            background-color: #1A202C;
+            color: white;
+            font-family: sans-serif;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+        #title-container {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 5;
+            width: 90%;
+        }
+        #title-container h1 {
+            font-size: 2.2rem;
+            font-weight: bold;
+            line-height: 1.4;
+            color: white;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+        #VRButton {
+            color: white !important;
+            background-color: rgba(255, 255, 255, 0.2) !important;
+            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+            backdrop-filter: blur(10px) !important;
+            border-radius: 9999px !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
+            padding: 14px 24px !important;
+            min-width: 220px !important;
+            box-shadow: none !important;
+            opacity: 1 !important;
+            position: absolute !important;
+            bottom: 15% !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            z-index: 100 !important;
+            white-space: nowrap !important;
+        }
+        #ui-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none; /* 初期状態ではクリック無効 */
+            display: none; /* VR起動まで非表示 */
+        }
+    </style>
+</head>
+<body>
+    <div id="title-container">
+        <h1>VR家具配置<br>シミュレーション</h1>
+    </div>
+
+    <div id="ui-overlay">
+        </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { VRButton } from 'three/addons/webxr/VRButton.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+
+        let camera, scene, renderer;
+        let controller1, controller2;
+        let controllerGrip1, controllerGrip2;
+        let vrUIContainer;
+        let raycaster;
+        const tempMatrix = new THREE.Matrix4();
+        const preloadedModels = new Map();
+        
+        let selectedObject = null;
+        let isDragging = false;
+        let lastControllerPosition = new THREE.Vector3();
+
+        const placedObjects = [];
+
+        // 家具データ（URLはダミー）
+        const furnitureData = [
+            { name: 'ソファ', file: 'https://cdn.glitch.global/60451e5e-e475-4389-9b90-f20387b9e3e9/sofa.glb?v=1699999999' },
+            { name: 'テーブル', file: 'https://cdn.glitch.global/60451e5e-e475-4389-9b90-f20387b9e3e9/dining_table.glb?v=1699999999' },
+            { name: '本棚', file: 'https://cdn.glitch.global/60451e5e-e475-4389-9b90-f20387b9e3e9/bookshelf.glb?v=1699999999' }
+        ];
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x505050);
+
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 2.5);
+            directionalLight.position.set(1, 2, 3);
+            scene.add(directionalLight);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            document.body.appendChild(VRButton.createButton(renderer, {
+                requiredFeatures: ['local-floor'],
+                optionalFeatures: ['hand-tracking'] // ハンドトラッキングも考慮
+            }));
+
+            raycaster = new THREE.Raycaster();
+
+            // コントローラーのセットアップ
+            setupControllers();
+
+            renderer.xr.addEventListener('sessionstart', onSessionStart);
+            renderer.xr.addEventListener('sessionend', onSessionEnd);
+
+            animate();
+            preloadModels();
+        }
+
+        function preloadModels() {
+            const loader = new GLTFLoader();
+            furnitureData.forEach(item => {
+                loader.load(item.file, (gltf) => {
+                    preloadedModels.set(item.file, gltf);
+                });
+            });
+        }
+
+        function onSessionStart() {
+            document.getElementById('title-container').style.display = 'none';
+            document.getElementById('ui-overlay').style.display = 'block';
+
+            // VR UIをセットアップ
+            setupVRUI();
+        }
+
+        function onSessionEnd() {
+            document.getElementById('title-container').style.display = 'block';
+            document.getElementById('ui-overlay').style.display = 'none';
+            // VR UIをシーンから削除
+            if (vrUIContainer) {
+                if (controller1) controller1.remove(vrUIContainer);
+                if (controller2) controller2.remove(vrUIContainer);
+            }
+        }
+
+        function setupControllers() {
+            const controllerModelFactory = new XRControllerModelFactory();
+
+            // 利き手でないコントローラー（0番）をUIパネル用に設定
+            controller1 = renderer.xr.getController(0);
+            controller1.addEventListener('selectstart', onSelectStart);
+            controller1.addEventListener('selectend', onSelectEnd);
+            scene.add(controller1);
+
+            controllerGrip1 = renderer.xr.getControllerGrip(0);
+            controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
+            scene.add(controllerGrip1);
+
+            // 利き手（1番）をオブジェクト操作用に設定
+            controller2 = renderer.xr.getController(1);
+            controller2.addEventListener('selectstart', onObjectSelectStart);
+            controller2.addEventListener('selectend', onObjectSelectEnd);
+            scene.add(controller2);
+
+            controllerGrip2 = renderer.xr.getControllerGrip(1);
+            controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
+            scene.add(controllerGrip2);
+        }
+
+        function setupVRUI() {
+            // VR UIパネルを保持するコンテナ
+            vrUIContainer = new THREE.Group();
+
+            // UIパネルの背景
+            const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x4A5568, transparent: true, opacity: 0.8 });
+            const panelGeometry = new THREE.PlaneGeometry(0.5, 0.4);
+            const panelMesh = new THREE.Mesh(panelGeometry, panelMaterial);
+            panelMesh.position.z = -0.01;
+            vrUIContainer.add(panelMesh);
+
+            // ボタンの追加
+            const addButton = createVRButton(0.2, 0.08, 0x1E90FF, '追加', () => {
+                // 家具選択パネルを開くロジック
+                console.log('追加ボタンが押されました');
+                openFurnitureModal();
+            });
+            addButton.position.set(0, 0.1, 0);
+            vrUIContainer.add(addButton);
+
+            // VR UIパネルを利き手でない方のコントローラーの子にする
+            const nonDominantController = renderer.xr.getController(0);
+            nonDominantController.add(vrUIContainer);
+            vrUIContainer.position.set(-0.15, 0.1, -0.2);
+            vrUIContainer.rotation.y = Math.PI / 4;
+        }
+
+        function createVRButton(width, height, color, label, onClick) {
+            const group = new THREE.Group();
+            const geometry = new THREE.PlaneGeometry(width, height);
+            const material = new THREE.MeshBasicMaterial({ color: color });
+            const buttonMesh = new THREE.Mesh(geometry, material);
+            group.add(buttonMesh);
+
+            // テキストの追加（簡易版）
+            const textGeometry = new THREE.TextGeometry(label, {
+                font: new THREE.Font(THREE.TextGeometry.Utils.is(THREE.TextGeometry)), // 適切なフォントを設定
+                size: 0.05,
+                height: 0.01
+            });
+            const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+            textMesh.position.z = 0.01;
+            group.add(textMesh);
+
+            group.userData.onClick = onClick;
+            return group;
+        }
+
+        function openFurnitureModal() {
+            // 家具選択モーダルをVR空間に表示するロジック
+            // この例ではコンソールログのみ
+            console.log('家具選択モーダルを開きます。');
+        }
+
+        function onSelectStart(event) {
+            const controller = event.target;
+            tempMatrix.identity().extractRotation(controller.matrixWorld);
+            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+
+            const intersections = raycaster.intersectObjects(vrUIContainer.children, true);
+            if (intersections.length > 0) {
+                const intersection = intersections[0];
+                const button = intersection.object.parent; // 親グループ（ボタンオブジェクト）を取得
+                if (button && button.userData.onClick) {
+                    button.userData.onClick();
+                }
+            }
+        }
+
+        function onSelectEnd(event) {}
+
+        function onObjectSelectStart(event) {
+            const controller = event.target;
+            controller.userData.isSelecting = true;
+
+            tempMatrix.identity().extractRotation(controller.matrixWorld);
+            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+
+            const intersections = raycaster.intersectObjects(placedObjects);
+            if (intersections.length > 0) {
+                selectedObject = intersections[0].object;
+                controller.userData.isDragging = true;
+                lastControllerPosition.setFromMatrixPosition(controller.matrixWorld);
+            }
+        }
+
+        function onObjectSelectEnd(event) {
+            const controller = event.target;
+            controller.userData.isSelecting = false;
+            controller.userData.isDragging = false;
+            selectedObject = null;
+        }
+
+        function animate() {
+            renderer.setAnimationLoop(render);
+        }
+
+        function render() {
+            const session = renderer.xr.getSession();
+            if (session) {
+                // コントローラーが家具を掴んでいる場合の移動ロジック
+                if (selectedObject && controller2.userData.isDragging) {
+                    const currentControllerPosition = new THREE.Vector3();
+                    currentControllerPosition.setFromMatrixPosition(controller2.matrixWorld);
+                    
+                    const deltaPosition = currentControllerPosition.clone().sub(lastControllerPosition);
+                    
+                    selectedObject.position.add(deltaPosition);
+                    
+                    lastControllerPosition.copy(currentControllerPosition);
+                }
+
+                // 拡縮・回転のロジックをここに追加
+                // 例：ジョイスティックの入力に応じて拡縮・回転
+                const inputSource = controller2.userData.inputSource;
+                if (inputSource) {
+                    const axes = inputSource.gamepad.axes;
+                    const rotateSpeed = axes[2] * 0.05; // ジョイスティックの左右
+                    const scaleChange = axes[3] * 0.01; // ジョイスティックの前後
+
+                    if (selectedObject) {
+                        selectedObject.rotation.y += rotateSpeed;
+                        selectedObject.scale.multiplyScalar(1 + scaleChange);
+                    }
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>

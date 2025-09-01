@@ -279,12 +279,23 @@
 
         function onObjectSelectStart(event) {
             const controller = event.target;
-            controller.userData.isSelecting = true;
 
+            // VR UIパネルとの交差判定を優先
             tempMatrix.identity().extractRotation(controller.matrixWorld);
             raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
             raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+            
+            const uiIntersections = raycaster.intersectObjects(vrUIContainer.children, true);
+            if (uiIntersections.length > 0) {
+                const uiButton = uiIntersections[0].object.parent;
+                if (uiButton && uiButton.userData.onClick) {
+                    uiButton.userData.onClick();
+                    return; // ボタンが押されたので、オブジェクト操作のロジックは実行しない
+                }
+            }
 
+            // オブジェクトの交差判定
+            controller.userData.isSelecting = true;
             const intersections = raycaster.intersectObjects(placedObjects);
             if (intersections.length > 0) {
                 selectedObject = intersections[0].object;

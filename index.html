@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>VR家具配置シミュレーション</title>
+    <title>VRシンプル起動テスト</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body {
@@ -50,24 +50,11 @@
             z-index: 100 !important;
             white-space: nowrap !important;
         }
-        #ui-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 10;
-            pointer-events: none;
-            display: none;
-        }
     </style>
 </head>
 <body>
     <div id="title-container">
-        <h1>VR家具配置<br>シミュレーション</h1>
-    </div>
-
-    <div id="ui-overlay">
+        <h1>VRシンプル起動テスト</h1>
     </div>
 
     <script type="importmap">
@@ -82,43 +69,29 @@
     <script type="module">
         import * as THREE from 'three';
         import { VRButton } from 'three/addons/webxr/VRButton.js';
-        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-        import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
         let camera, scene, renderer;
-        let controller1, controller2;
-        let controllerGrip1, controllerGrip2;
-        let vrUIContainer;
-        let raycaster;
-        const tempMatrix = new THREE.Matrix4();
-        const preloadedModels = new Map();
-        
-        let selectedObject = null;
-        let isDragging = false;
-        let lastControllerPosition = new THREE.Vector3();
-
-        const placedObjects = [];
-        let hoveredObject = null;
-
-        // 家具データ（URLはダミー）
-        const furnitureData = [
-            { name: 'ソファ', file: 'https://cdn.glitch.global/60451e5e-e475-4389-9b90-f20387b9e3e9/sofa.glb?v=1699999999' },
-            { name: 'テーブル', file: 'https://cdn.glitch.global/60451e5e-e475-4389-9b90-f20387b9e3e9/dining_table.glb?v=1699999999' },
-            { name: '本棚', file: 'https://cdn.glitch.global/60451e5e-e475-4389-9b90-f20387b9e3e9/bookshelf.glb?v=1699999999' }
-        ];
+        let ambientLight, directionalLight;
 
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x505050);
 
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+            // VRセッション開始時に背景がレンダリングされるよう、カメラをセットアップ
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
 
-            const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+            // 光源を追加
+            ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
             scene.add(ambientLight);
-
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 2.5);
-            directionalLight.position.set(1, 2, 3);
+            directionalLight = new THREE.DirectionalLight(0xffffff, 2.5);
+            directionalLight.position.set(0, 5, 5);
             scene.add(directionalLight);
+
+            // 床をシミュレートする白いメッシュを追加
+            const floorGeometry = new THREE.PlaneGeometry(100, 100);
+            const floorMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
+            floorMesh.rotation.x = -Math.PI / 2; // 床のように水平に回転
+            scene.add(floorMesh);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setPixelRatio(window.devicePixelRatio);
@@ -126,265 +99,17 @@
             renderer.xr.enabled = true;
             document.body.appendChild(renderer.domElement);
 
-            document.body.appendChild(VRButton.createButton(renderer, {
-                requiredFeatures: ['local-floor'],
-                optionalFeatures: ['hand-tracking']
-            }));
+            document.body.appendChild(VRButton.createButton(renderer));
 
-            raycaster = new THREE.Raycaster();
-
-            renderer.xr.addEventListener('sessionstart', onSessionStart);
-            renderer.xr.addEventListener('sessionend', onSessionEnd);
-
+            // VRモードが開始すると、renderループが自動的に起動
             renderer.setAnimationLoop(render);
-
-            preloadModels();
         }
 
-        function preloadModels() {
-            const loader = new GLTFLoader();
-            furnitureData.forEach(item => {
-                loader.load(item.file, (gltf) => {
-                    preloadedModels.set(item.file, gltf);
-                });
-            });
-        }
-
-        function onSessionStart() {
-            document.getElementById('title-container').style.display = 'none';
-            document.getElementById('ui-overlay').style.display = 'block';
-            
-            // VRセッション開始後、コントローラーをセットアップ
-            setupControllers();
-            setupVRUI();
-        }
-
-        function onSessionEnd() {
-            document.getElementById('title-container').style.display = 'block';
-            document.getElementById('ui-overlay').style.display = 'none';
-            if (vrUIContainer) {
-                if (controller1) controller1.remove(vrUIContainer);
-                if (controller2) controller2.remove(vrUIContainer);
-            }
-        }
-
-        function setupControllers() {
-            const controllerModelFactory = new XRControllerModelFactory();
-
-            // 利き手でないコントローラー（0番）
-            controller1 = renderer.xr.getController(0);
-            controller1.addEventListener('selectstart', onSelectStart);
-            controller1.addEventListener('selectend', onSelectEnd);
-            scene.add(controller1);
-
-            const controllerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-            const controllerGeometry = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(0, 0, 0),
-                new THREE.Vector3(0, 0, -1)
-            ]);
-            const controllerLine = new THREE.Line(controllerGeometry, controllerMaterial);
-            controllerLine.scale.z = 0;
-            controller1.add(controllerLine.clone());
-            
-            controllerGrip1 = renderer.xr.getControllerGrip(0);
-            controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
-            scene.add(controllerGrip1);
-
-            // 利き手（1番）
-            controller2 = renderer.xr.getController(1);
-            controller2.addEventListener('selectstart', onObjectSelectStart);
-            controller2.addEventListener('selectend', onObjectSelectEnd);
-            scene.add(controller2);
-            
-            const controllerLine2 = new THREE.Line(controllerGeometry, controllerMaterial);
-            controllerLine2.scale.z = 0;
-            controller2.add(controllerLine2.clone());
-
-            controllerGrip2 = renderer.xr.getControllerGrip(1);
-            controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
-            scene.add(controllerGrip2);
-        }
-
-        function setupVRUI() {
-            vrUIContainer = new THREE.Group();
-
-            const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x4A5568, transparent: true, opacity: 0.8 });
-            const panelGeometry = new THREE.PlaneGeometry(0.5, 0.4);
-            const panelMesh = new THREE.Mesh(panelGeometry, panelMaterial);
-            panelMesh.position.z = -0.01;
-            vrUIContainer.add(panelMesh);
-
-            const addButton = createVRButton(0.2, 0.08, 0x1E90FF, '追加', () => {
-                console.log('追加ボタンが押されました');
-                openFurnitureModal();
-            });
-            addButton.position.set(0, 0.1, 0);
-            vrUIContainer.add(addButton);
-
-            const nonDominantController = renderer.xr.getController(0);
-            if (nonDominantController) {
-                nonDominantController.add(vrUIContainer);
-                vrUIContainer.position.set(-0.15, 0.1, -0.2);
-                vrUIContainer.rotation.y = Math.PI / 4;
-            } else {
-                renderer.xr.getController(1).add(vrUIContainer);
-                vrUIContainer.position.set(-0.15, 0.1, -0.2);
-                vrUIContainer.rotation.y = Math.PI / 4;
-            }
-        }
-
-        function createVRButton(width, height, color, label, onClick) {
-            const group = new THREE.Group();
-            
-            const texture = createButtonTexture(width * 256, height * 256, label);
-            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, color: color });
-            const buttonMesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
-            buttonMesh.userData.originalColor = new THREE.Color(color);
-            group.add(buttonMesh);
-
-            group.userData.onClick = onClick;
-            return group;
-        }
-
-        function createButtonTexture(width, height, label) {
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const context = canvas.getContext('2d');
-            
-            context.fillStyle = '#FFFFFF';
-            context.fillRect(0, 0, width, height);
-
-            context.fillStyle = '#000000';
-            context.font = `bold ${height * 0.5}px sans-serif`;
-            context.textAlign = 'center';
-            context.textBaseline = 'middle';
-            context.fillText(label, width / 2, height / 2);
-
-            return new THREE.CanvasTexture(canvas);
-        }
-
-        function openFurnitureModal() {
-            console.log('家具選択モーダルを開きます。');
-        }
-
-        function onSelectStart(event) {
-            const controller = event.target;
-            
-            tempMatrix.identity().extractRotation(controller.matrixWorld);
-            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-
-            const intersections = raycaster.intersectObjects(vrUIContainer.children, true);
-            if (intersections.length > 0) {
-                const intersection = intersections[0];
-                const button = intersection.object.parent;
-                if (button && button.userData.onClick) {
-                    button.userData.onClick();
-                }
-            }
-        }
-
-        function onSelectEnd(event) {}
-
-        function onObjectSelectStart(event) {
-            const controller = event.target;
-
-            tempMatrix.identity().extractRotation(controller.matrixWorld);
-            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-            
-            const uiIntersections = raycaster.intersectObjects(vrUIContainer.children, true);
-            if (uiIntersections.length > 0) {
-                const uiButton = uiIntersections[0].object.parent;
-                if (uiButton && uiButton.userData.onClick) {
-                    uiButton.userData.onClick();
-                    return;
-                }
-            }
-
-            controller.userData.isSelecting = true;
-            const intersections = raycaster.intersectObjects(placedObjects);
-            if (intersections.length > 0) {
-                selectedObject = intersections[0].object;
-                controller.userData.isDragging = true;
-                lastControllerPosition.setFromMatrixPosition(controller.matrixWorld);
-            }
-        }
-
-        function onObjectSelectEnd(event) {
-            const controller = event.target;
-            controller.userData.isSelecting = false;
-            controller.userData.isDragging = false;
-            selectedObject = null;
-        }
-        
         function render() {
-            const session = renderer.xr.getSession();
-            if (session) {
-                handleInteractions(controller1);
-                handleInteractions(controller2);
-
-                if (selectedObject && controller2.userData.isDragging) {
-                    const currentControllerPosition = new THREE.Vector3();
-                    currentControllerPosition.setFromMatrixPosition(controller2.matrixWorld);
-                    
-                    const deltaPosition = currentControllerPosition.clone().sub(lastControllerPosition);
-                    
-                    selectedObject.position.add(deltaPosition);
-                    
-                    lastControllerPosition.copy(currentControllerPosition);
-                }
-
-                const inputSource = controller2.userData.inputSource;
-                if (inputSource) {
-                    const axes = inputSource.gamepad.axes;
-                    const rotateSpeed = axes[2] * 0.05;
-                    const scaleChange = axes[3] * 0.01;
-
-                    if (selectedObject) {
-                        selectedObject.rotation.y += rotateSpeed;
-                        selectedObject.scale.multiplyScalar(1 + scaleChange);
-                    }
-                }
-            }
-
+            // ここにVRコントローラーの処理などを書く
             renderer.render(scene, camera);
         }
-        
-        function handleInteractions(controller) {
-            if (!controller) return; // コントローラーがまだ存在しない場合は処理をスキップ
-            const line = controller.children[0];
-            
-            tempMatrix.identity().extractRotation(controller.matrixWorld);
-            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
-            const intersections = raycaster.intersectObjects(vrUIContainer.children, true);
-            
-            if (intersections.length > 0) {
-                const intersection = intersections[0];
-                const object = intersection.object.parent;
-                
-                if (object !== hoveredObject) {
-                    if (hoveredObject) {
-                        hoveredObject.children[0].material.color.copy(hoveredObject.children[0].userData.originalColor);
-                    }
-                    hoveredObject = object;
-                    hoveredObject.children[0].material.color.setHex(0xaaaaaa);
-                }
-                
-                line.scale.z = intersection.distance;
-            } else {
-                if (hoveredObject) {
-                    hoveredObject.children[0].material.color.copy(hoveredObject.children[0].userData.originalColor);
-                    hoveredObject = null;
-                }
-                
-                line.scale.z = 5;
-            }
-        }
-        
         init();
     </script>
 </body>

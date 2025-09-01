@@ -52,7 +52,7 @@
     </div>
 
     <div id="overlay">
-        </div>
+    </div>
 
     <script type="importmap">
         {
@@ -88,7 +88,7 @@
             const clock = new THREE.Clock();
             
             let controller0, controller1;
-            let vrUiPanel; // UIパネルを格納する変数
+            let vrUiPanel;
 
             init();
             
@@ -172,7 +172,6 @@
             function createVrUiPanel() {
                 const panelGroup = new THREE.Group();
                 
-                // パネルの背景
                 const panelGeometry = new THREE.PlaneGeometry(0.3, 0.4);
                 const panelMaterial = new THREE.MeshBasicMaterial({
                     color: 0x2d3748,
@@ -185,7 +184,6 @@
                 panelMesh.rotation.x = Math.PI / 4;
                 panelGroup.add(panelMesh);
                 
-                // 「Add」ボタンの作成（プレースホルダー）
                 const buttonGeometry = new THREE.BoxGeometry(0.1, 0.05, 0.02);
                 const buttonMaterial = new THREE.MeshBasicMaterial({ color: 0x4299e1 });
                 const addButton = new THREE.Mesh(buttonGeometry, buttonMaterial);
@@ -197,13 +195,11 @@
             }
 
             function initializeVRExperience() {
-                // VRコントローラーのセットアップ
-                controller0 = renderer.xr.getController(0); // 利き手 (右手)
-                controller1 = renderer.xr.getController(1); // 利き手と反対 (左手)
+                controller0 = renderer.xr.getController(0);
+                controller1 = renderer.xr.getController(1);
                 scene.add(controller0);
                 scene.add(controller1);
 
-                // コントローラーモデルの読み込みとシーンへの追加
                 const controllerModelFactory = new XRControllerModelFactory();
                 const controllerGrip0 = renderer.xr.getControllerGrip(0);
                 controllerGrip0.add(controllerModelFactory.createControllerModel(controllerGrip0));
@@ -213,7 +209,6 @@
                 controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
                 scene.add(controllerGrip1);
 
-                // レイ（光線）の作成
                 const geometry = new THREE.BufferGeometry().setFromPoints([
                     new THREE.Vector3(0, 0, 0),
                     new THREE.Vector3(0, 0, -1)
@@ -228,11 +223,10 @@
                 const line1 = line.clone();
                 controller1.add(line1);
 
-                // VR UIパネルの作成とコントローラーへのアタッチ
+                // UIパネルの作成とコントローラーへのアタッチ
                 vrUiPanel = createVrUiPanel();
                 controller1.add(vrUiPanel);
 
-                // VRコントローラーイベントリスナー
                 controller0.addEventListener('selectstart', onSelectStart);
                 controller0.addEventListener('selectend', onSelectEnd);
                 
@@ -240,43 +234,13 @@
                 controller1.addEventListener('selectend', onSelectEnd);
             }
 
-            // AR版の不要なUI関連関数を削除
-            // function setupUI() { ... }
-            // function updateAllCategories() { ... }
-            // function populateCategories() { ... }
-            // function displayFurniture() { ... }
-            // function adjustModalForKeyboard() { ... }
-            // function activateCategoryTab() { ... }
-
             function onSelectStart(event) {
                 console.log("Select start event triggered");
-
-                // レイキャスターの交差判定をここで実行
-                // 例：const intersects = raycaster.intersectObjects(vrUiPanel.children, true);
-                // intersectObjects()の対象にUIパネルを追加する必要がある
             }
 
             function onSelectEnd(event) {
                 console.log("Select end event triggered");
             }
-
-            // AR版の不要な関数を削除
-            // function updateSliderForObject() { ... }
-            // function updateSliderHandlePosition() { ... }
-            // function updateScaleFromSlider() { ... }
-            // function onSelect() { ... }
-            // function onRotate() { ... }
-            // function startDeleteAnimation() { ... }
-            // function onDelete() { ... }
-            // function placeNewObject() { ... }
-            // function updatePreviewObject() { ... }
-            // function getDistance() { ... }
-            // function setupRotationButtonEvents() { ... }
-            // function onObjectTap() { ... }
-            // function handleLongPress() { ... }
-            // function handleTouchStart() { ... }
-            // function handleTouchMove() { ... }
-            // function handleTouchEnd() { ... }
 
             function setObjectTransparency(object, isTransparent, opacity = 0.7) {
                 if (!object) return;
@@ -301,14 +265,30 @@
                     return;
                 }
                 
-                // VRコントローラーのレイキャスターを更新
+                // ホバー状態の処理
+                const targetRay = controller0;
                 const tempMatrix = new THREE.Matrix4();
-                tempMatrix.identity().extractRotation(controller0.matrixWorld);
-                raycaster.ray.origin.setFromMatrixPosition(controller0.matrixWorld);
+                tempMatrix.identity().extractRotation(targetRay.matrixWorld);
+                raycaster.ray.origin.setFromMatrixPosition(targetRay.matrixWorld);
                 raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
-                // UIパネルのホバー状態を処理
-                // handleUiHover();
+                // ここにUIパネルのホバーロジックを実装していく
+                const intersects = raycaster.intersectObject(vrUiPanel, true);
+                if (intersects.length > 0) {
+                    const intersectedObject = intersects[0].object;
+                    if (intersectedObject.name === 'addButton') {
+                        // ホバー時の処理 (色の変更など)
+                        if (intersectedObject.material.color.getHex() !== 0x42f567) {
+                            intersectedObject.material.color.setHex(0x42f567);
+                        }
+                    }
+                } else {
+                    // ホバーが外れたときの処理
+                    const addButton = vrUiPanel.getObjectByName('addButton');
+                    if (addButton && addButton.material.color.getHex() !== 0x4299e1) {
+                        addButton.material.color.setHex(0x4299e1);
+                    }
+                }
 
                 renderer.render(scene, camera);
             }

@@ -952,6 +952,7 @@
         import * as THREE from 'three';
         import { VRButton } from 'three/addons/webxr/VRButton.js';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
         function main() {
             setupWebXR();
@@ -975,15 +976,11 @@
             let tabButtons, helpPages;
             let confirmDialog, objectPendingDeletion = null;
 
-            // 家具データ（カテゴリとサムネイルパスを追加）
             const furnitureData = [
-                // 既存の家具
                 { name: 'イス(生成AI)', file: 'AI_chiar.glb', height: 0.79, category: 'チェア', thumbnail: 'thumbnails/chair_thumb.png' },
                 { name: 'イス(フォトグラメトリ)', file: 'photochair.glb', height: 0.79, category: 'チェア', thumbnail: 'thumbnails/chair_thumb.png' },
                 { name: '本棚', file: 'bookshelf.glb', height: 1.8, category: '収納', thumbnail: 'thumbnails/bookshelf_thumb.png' },
                 { name: '脚立', file: 'stand.glb', height: 1.2, category: 'その他', thumbnail: 'thumbnails/stand_thumb.png' },
-
-                // ここから新しい家具を追加
                 { name: 'ダイニングテーブル', file: 'dining_table.glb', height: 0.75, category: 'テーブル', thumbnail: 'thumbnails/dining_table_thumb.png' },
                 { name: 'ソファ', file: 'sofa.glb', height: 0.7, category: 'ソファ', thumbnail: 'thumbnails/sofa_thumb.png' },
                 { name: 'フロアランプ', file: 'floor_lamp.glb', height: 1.5, category: '照明', thumbnail: 'thumbnails/floor_lamp_thumb.png' },
@@ -993,7 +990,6 @@
                 { name: 'テレビボード', file: 'tv_board.glb', height: 0.4, category: '収納', thumbnail: 'thumbnails/tv_board_thumb.png' },
                 { name: 'ローテーブル', file: 'low_table.glb', height: 0.35, category: 'テーブル', thumbnail: 'thumbnails/low_table_thumb.png' },
                 { name: 'コートハンガー', file: 'coat_hanger.glb', height: 1.7, category: 'その他', thumbnail: 'thumbnails/coat_hanger_thumb.png' },
-                // 必要に応じてさらに家具を追加してください
             ];
             let currentFurniture = furnitureData[0];
             let previewObject = null;
@@ -1022,6 +1018,8 @@
 
             let isRotatingContinuously = false;
             let continuousRotationDirection = 0;
+
+            let controller0, controller1;
 
             init();
 
@@ -1075,12 +1073,12 @@
             function resetScene() {
                 placedObjects.forEach(object => scene.remove(object));
                 placedObjects.length = 0;
-
+                
                 if (previewObject) scene.remove(previewObject);
                 previewObject = null;
                 selectedObject = null;
                 hoveredObject = null;
-
+                
                 if(reticle) scene.remove(reticle);
                 reticle = null;
 
@@ -1125,14 +1123,13 @@
                 document.getElementById('rotate-left-button').innerHTML = rotateLeftIconSVG;
                 document.getElementById('rotate-right-button').innerHTML = rotateRightIconSVG;
 
-                // --- VR向けに修正 ---
                 renderer.xr.addEventListener('sessionstart', () => {
                     document.getElementById('title-container').style.display = 'none';
                     document.getElementById('overlay').style.display = 'none';
                     resetScene();
                     isEditMode = true;
                     updateUI();
-                    initializeARExperience();
+                    initializeVRExperience(); // VR向けの初期化関数に変更
                     preloadModels();
                 });
 
@@ -1145,82 +1142,103 @@
                     document.getElementById('mode-switch-button').style.display = 'none';
                     stopDotAnimation();
                 });
-                // --- 修正箇所終了 ---
 
                 animate();
 
-                // --- VRButtonに変更 ---
                 document.body.appendChild(VRButton.createButton(renderer, {
                     requiredFeatures: ['local-floor'],
                 }));
-                // --- 変更箇所終了 ---
             }
 
-            function initializeARExperience() {
-                reticle = new THREE.Mesh(
-                    new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
-                    new THREE.MeshBasicMaterial()
-                );
-                reticle.matrixAutoUpdate = false;
-                reticle.visible = false;
-                scene.add(reticle);
-                setupUI(); // ここでUI要素のイベントリスナーを設定
+            function initializeVRExperience() {
+                // VRコントローラーのセットアップ
+                controller0 = renderer.xr.getController(0); // 利き手 (右手)
+                controller1 = renderer.xr.getController(1); // 利き手と反対 (左手)
+                scene.add(controller0);
+                scene.add(controller1);
+
+                // コントローラーモデルの読み込みとシーンへの追加
+                const controllerModelFactory = new XRControllerModelFactory();
+                const controllerGrip0 = renderer.xr.getControllerGrip(0);
+                controllerGrip0.add(controllerModelFactory.createControllerModel(controllerGrip0));
+                scene.add(controllerGrip0);
+
+                const controllerGrip1 = renderer.xr.getControllerGrip(1);
+                controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
+                scene.add(controllerGrip1);
+
+                // レイ（光線）の作成
+                const geometry = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(0, 0, -1)
+                ]);
+                const line = new THREE.Line(geometry);
+                line.name = 'line';
+                line.scale.z = 5; // 光線の長さを設定
+                controller0.add(line.clone()); // 利き手コントローラーにレイを追加
+
+                // AR版のreticleはVRでは不要なので削除
+                if (reticle) {
+                    scene.remove(reticle);
+                    reticle = null;
+                }
+
+                // AR版のタッチイベントをVRコントローラーイベントに置き換える
+                controller0.addEventListener('selectstart', onSelectStart);
+                controller0.addEventListener('selectend', onSelectEnd);
+                
+                controller1.addEventListener('selectstart', onSelectStart);
+                controller1.addEventListener('selectend', onSelectEnd);
+
+                setupUI();
             }
 
             const categoryTabsContainer = document.getElementById('category-tabs');
-            const modalContent = document.getElementById('furniture-modal-inner'); // スワイプイベントリスナーの親要素を修正
+            const modalContent = document.getElementById('furniture-modal-inner');
             const searchInput = document.getElementById('search-input');
             const clearSearchButton = document.getElementById('clear-search-button');
 
-            let allCategories = []; // すべてのカテゴリを保持する配列
-            let currentCategoryIndex = 0; // 現在選択されているカテゴリのインデックス
+            let allCategories = [];
+            let currentCategoryIndex = 0;
 
             function updateAllCategories() {
                 allCategories = [...new Set(furnitureData.map(item => item.category))].sort();
-                allCategories.unshift('すべて'); // 「すべて」タブを先頭に追加
+                allCategories.unshift('すべて');
             }
 
             function populateCategories() {
-                categoryTabsContainer.innerHTML = ''; // 既存のタブをクリア
-                updateAllCategories(); // カテゴリリストを更新
+                categoryTabsContainer.innerHTML = '';
+                updateAllCategories();
 
                 allCategories.forEach(category => {
                     const tabButton = document.createElement('button');
                     tabButton.className = 'category-tab-button';
                     tabButton.textContent = category;
-                    tabButton.dataset.category = category; // データ属性にカテゴリ名を設定
+                    tabButton.dataset.category = category;
 
                     tabButton.addEventListener('click', () => {
-                        // 検索フィールドをクリア
                         searchInput.value = '';
                         clearSearchButton.style.display = 'none';
-                        // すべてのタブから active クラスを削除
                         document.querySelectorAll('.category-tab-button').forEach(btn => {
                             btn.classList.remove('active');
                         });
-                        // クリックされたタブに active クラスを追加
                         tabButton.classList.add('active');
-                        // 現在のカテゴリインデックスを更新
                         currentCategoryIndex = allCategories.indexOf(category);
-                        // 選択されたカテゴリの家具を表示
                         displayFurniture(category);
                     });
                     categoryTabsContainer.appendChild(tabButton);
                 });
 
-                // 初期状態で「すべて」タブをアクティブにする
-                currentCategoryIndex = 0; // 「すべて」は常にインデックス0
+                currentCategoryIndex = 0;
                 activateCategoryTab(allCategories[currentCategoryIndex]);
             }
 
-            // 指定されたカテゴリの家具を表示する (検索キーワード対応)
             function displayFurniture(category, searchTerm = '') {
                 const furnitureGrid = document.getElementById('furniture-grid');
-                furnitureGrid.innerHTML = ''; // グリッドをクリア
+                furnitureGrid.innerHTML = '';
 
                 const lowerCaseSearchTerm = searchTerm.toLowerCase().trim();
 
-                // フィルタリングする家具データのリスト
                 const filteredFurniture = furnitureData.filter(item => {
                     const matchesCategory = (category === 'すべて' || item.category === category);
                     const matchesSearch = item.name.toLowerCase().includes(lowerCaseSearchTerm);
@@ -1233,17 +1251,14 @@
                     filteredFurniture.forEach(item => {
                         const gridItem = document.createElement('div');
                         gridItem.className = 'grid-item';
-                        gridItem.dataset.category = item.category; // アイテムにもカテゴリ情報を持たせる
+                        gridItem.dataset.category = item.category;
 
-                        // サムネイル画像を作成 (必要に応じてコメント解除して利用)
                         const img = document.createElement('img');
                         img.src = item.thumbnail;
                         img.alt = item.name;
-                        // 画像の読み込みエラー時のフォールバック
                         img.onerror = () => { img.style.display = 'none'; console.warn(`Thumbnail not found or failed to load: ${item.thumbnail}`); };
                         gridItem.appendChild(img);
 
-                        // 家具名テキストを作成
                         const p = document.createElement('p');
                         p.textContent = item.name;
                         gridItem.appendChild(p);
@@ -1253,7 +1268,7 @@
                             currentFurniture = item;
                             updatePreviewObject();
                             appState = 'PLACING';
-                            document.getElementById('furniture-modal').style.display = 'none'; // モーダルを閉じる
+                            document.getElementById('furniture-modal').style.display = 'none';
                             updateUI();
                         });
                         furnitureGrid.appendChild(gridItem);
@@ -1261,7 +1276,6 @@
                 }
             }
 
-            // キーボードの表示/非表示を検知してモーダル位置を調整する
             let initialViewportHeight = window.innerHeight;
             let currentKeyboardHeight = 0;
 
@@ -1269,10 +1283,9 @@
                 const furnitureModal = document.getElementById('furniture-modal');
                 const newViewportHeight = window.innerHeight;
 
-                // AndroidではinnerHeightの変化でキーボードの高さを推測
                 currentKeyboardHeight = initialViewportHeight - newViewportHeight;
 
-                if (currentKeyboardHeight > 50) { // 50px以上変化したらキーボードが表示されたと判断
+                if (currentKeyboardHeight > 50) {
                     furnitureModal.classList.add('modal-above-keyboard');
                     furnitureModal.style.setProperty('--keyboard-height', `${currentKeyboardHeight}px`);
                 } else {
@@ -1280,7 +1293,6 @@
                     furnitureModal.style.removeProperty('--keyboard-height');
                 }
             }
-            // Androidではwindow.visualViewportがなくてもwindow.innerHeightのresizeイベントで対応できることが多い
             window.addEventListener('resize', adjustModalForKeyboard);
 
 
@@ -1288,23 +1300,22 @@
                 const furnitureModal = document.getElementById('furniture-modal');
                 const closeModalButton = document.getElementById('close-modal-button');
                 
-                // add-buttonクリック時、家具モーダルを表示し、カテゴリタブと家具を初期化・表示
                 document.getElementById('add-button').addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (appState === 'IDLE') {
                         furnitureModal.style.display = 'flex';
-                        populateCategories(); // カテゴリタブを生成・初期化
-                        displayFurniture(allCategories[currentCategoryIndex]); // 現在のカテゴリの家具を表示
-                        searchInput.focus(); // 検索フィールドにフォーカス
+                        populateCategories();
+                        displayFurniture(allCategories[currentCategoryIndex]);
+                        searchInput.focus();
                     }
                 });
 
                 const closeModal = (e) => {
                     e.stopPropagation();
                     furnitureModal.style.display = 'none';
-                    searchInput.blur(); // モーダルを閉じるときに検索フィールドからフォーカスを外す
-                    currentKeyboardHeight = 0; // キーボードの高さをリセット
-                    adjustModalForKeyboard(); // モーダル位置をリセット
+                    searchInput.blur();
+                    currentKeyboardHeight = 0;
+                    adjustModalForKeyboard();
                 };
                 closeModalButton.addEventListener('click', closeModal);
                 furnitureModal.addEventListener('click', (e) => {
@@ -1313,7 +1324,6 @@
                     }
                 });
 
-                // 検索機能のイベントリスナー
                 searchInput.addEventListener('input', (e) => {
                     const searchTerm = e.target.value;
                     const activeCategory = document.querySelector('.category-tab-button.active')?.dataset.category || 'すべて';
@@ -1330,7 +1340,7 @@
                     clearSearchButton.style.display = 'none';
                     const activeCategory = document.querySelector('.category-tab-button.active')?.dataset.category || 'すべて';
                     displayFurniture(activeCategory);
-                    searchInput.focus(); // クリア後に再度フォーカス
+                    searchInput.focus();
                 });
 
 
@@ -1438,13 +1448,11 @@
                 document.addEventListener('touchmove', onSliderDragMove, { passive: false });
                 document.addEventListener('touchend', onSliderDragEnd);
                 
-                // 家具モーダルでのスワイプイベントリスナーをmodalContentに設定
                 let touchStartX = 0;
                 let touchEndX = 0;
-                const swipeThreshold = 50; // スワイプと認識する最小距離（ピクセル）
+                const swipeThreshold = 50;
 
                 modalContent.addEventListener('touchstart', (e) => {
-                    // カテゴリタブ、閉じるボタン、検索入力、グリッドアイテム上でのスワイプは処理しない
                     if (e.target.closest('.category-tab-button') || e.target.closest('#close-modal-button') || e.target.closest('#search-input')) {
                         return; 
                     }
@@ -1452,7 +1460,6 @@
                 }, { passive: true });
 
                 modalContent.addEventListener('touchend', (e) => {
-                    // touchstartで除外したものと同じ要素を再度チェック
                     if (e.target.closest('.category-tab-button') || e.target.closest('#close-modal-button') || e.target.closest('#search-input')) {
                         return; 
                     }
@@ -1464,30 +1471,28 @@
                     const swipeDistance = touchEndX - touchStartX;
 
                     if (Math.abs(swipeDistance) > swipeThreshold) {
-                        if (swipeDistance < 0) { // 左スワイプ（次のカテゴリへ）
+                        if (swipeDistance < 0) {
                             currentCategoryIndex++;
                             if (currentCategoryIndex >= allCategories.length) {
-                                currentCategoryIndex = 0; // 最後まで行ったら最初に戻る
+                                currentCategoryIndex = 0;
                             }
-                        } else { // 右スワイプ（前のカテゴリへ）
+                        } else {
                             currentCategoryIndex--;
                             if (currentCategoryIndex < 0) {
-                                currentCategoryIndex = allCategories.length - 1; // 最初まで行ったら最後に戻る
+                                currentCategoryIndex = allCategories.length - 1;
                             }
                         }
                         const newCategory = allCategories[currentCategoryIndex];
-                        activateCategoryTab(newCategory); // 新しいカテゴリのタブをアクティブにする
-                        displayFurniture(newCategory, searchInput.value); // 家具表示を更新（検索キーワードも考慮）
+                        activateCategoryTab(newCategory);
+                        displayFurniture(newCategory, searchInput.value);
                     }
                 }
 
-                // アクティブなカテゴリタブを更新し、スクロールするヘルパー関数
                 function activateCategoryTab(categoryToActivate) {
                     document.querySelectorAll('.category-tab-button').forEach(btn => {
                         btn.classList.remove('active');
                         if (btn.dataset.category === categoryToActivate) {
                             btn.classList.add('active');
-                            // アクティブなタブがビューポート内に収まるようにスクロール
                             btn.scrollIntoView({ behavior: 'smooth', inline: 'center' });
                         }
                     });
@@ -1523,169 +1528,54 @@
                 return Math.sqrt(dx * dx + dy * dy);
             }
 
+            // この関数はVRでは直接使用しません。
             function onObjectTap(event) {
-                const touch = event.changedTouches[0];
-                const tapPosition = new THREE.Vector2(
-                    (touch.clientX / window.innerWidth) * 2 - 1,
-                    - (touch.clientY / window.innerHeight) * 2 + 1
-                );
-
-                raycaster.setFromCamera(tapPosition, camera);
-
-                if (appState === 'PLACING' || appState === 'EDITING') {
-                    const activeObject = appState === 'PLACING' ? previewObject : selectedObject;
-                    if (activeObject) {
-                        const intersects = raycaster.intersectObject(activeObject, true);
-                        if (intersects.length > 0) {
-                            onConfirm();
-                        }
-                    }
-                } else if (appState === 'IDLE') {
-                    const intersects = raycaster.intersectObjects(placedObjects, true);
-                    if (intersects.length > 0) {
-                        let targetObject = intersects[0].object;
-                        while(targetObject.parent && !placedObjects.includes(targetObject)) {
-                            targetObject = targetObject.parent;
-                        }
-                        if (placedObjects.includes(targetObject)) {
-                            selectAndEditObject(targetObject);
-                        }
-                    }
-                }
+                // VRコントローラーの入力に置き換えられるため、この関数は事実上無効になります。
             }
 
+            // この関数はVRでは直接使用しません。
             function handleLongPress(tappedObject) {
-                if (!tappedObject || confirmDialog.style.display === 'flex') return;
-                objectPendingDeletion = tappedObject;
-                confirmDialog.style.display = 'flex';
+                // VRコントローラーの入力に置き換えられるため、この関数は事実上無効になります。
             }
 
+            // この関数はVRでは直接使用しません。
             function handleTouchStart(event) {
-                if (event.target !== event.currentTarget || confirmDialog.style.display === 'flex') return;
-                event.preventDefault();
-
-                gestureState.touchCount = event.touches.length;
-                gestureState.startTime = Date.now();
-                gestureState.startX = event.touches[0].clientX;
-                gestureState.startY = event.touches[0].clientY;
-
-                if (gestureState.touchCount === 1) {
-                    if (!isEditMode) return;
-                    clearTimeout(gestureState.longPressTimer);
-                    gestureState.longPressTimer = setTimeout(() => {
-                        gestureState.longPressTimer = null;
-
-                        const tapPosition = new THREE.Vector2(
-                            (gestureState.startX / window.innerWidth) * 2 - 1,
-                            - (gestureState.startY / window.innerHeight) * 2 + 1
-                        );
-                        raycaster.setFromCamera(tapPosition, camera);
-
-                        let objectsToCheck = [];
-                        if (appState === 'IDLE') {
-                            objectsToCheck = placedObjects;
-                        } else if (appState === 'PLACING' && previewObject) {
-                            objectsToCheck = [previewObject];
-                        } else if (appState === 'EDITING' && selectedObject) {
-                            objectsToCheck = [selectedObject];
-                        }
-
-                        const intersects = raycaster.intersectObjects(objectsToCheck, true);
-
-                        if (intersects.length > 0) {
-                            let targetObject = intersects[0].object;
-                            while (targetObject.parent && !objectsToCheck.includes(targetObject)) {
-                                targetObject = targetObject.parent;
-                            }
-                            if (objectsToCheck.includes(targetObject)) {
-                                handleLongPress(targetObject);
-                            }
-                        }
-                    }, 800);
-                }
-
-                const activeObject = (appState === 'PLACING' || appState === 'EDITING') ? (previewObject || selectedObject) : null;
-                if (activeObject && isEditMode) {
-                    gestureState.isInteracting = true;
-                }
-
-                if (gestureState.touchCount === 1) {
-                    gestureState.lastX = event.touches[0].clientX;
-                } else if (gestureState.touchCount >= 2) {
-                    clearTimeout(gestureState.longPressTimer);
-                    gestureState.initialDistance = getDistance(event.touches);
-                    if (activeObject) {
-                        gestureState.originalMultiplier = activeObject.userData.scaleMultiplier || 1.0;
-                    }
-                }
+                // VRコントローラーの入力に置き換えられるため、この関数は事実上無効になります。
             }
 
+            // この関数はVRでは直接使用しません。
             function handleTouchMove(event) {
-                if (event.target !== event.currentTarget || confirmDialog.style.display === 'flex') return;
-                event.preventDefault();
+                // VRコントローラーの入力に置き換えられるため、この関数は事実上無効になります。
+            }
 
-                if (gestureState.longPressTimer) {
-                    const moveX = event.touches[0].clientX;
-                    const moveY = event.touches[0].clientY;
-                    const distance = Math.sqrt(Math.pow(moveX - gestureState.startX, 2) + Math.pow(moveY - gestureState.startY, 2));
-                    if (distance > 10) {
-                       clearTimeout(gestureState.longPressTimer);
-                       gestureState.longPressTimer = null;
+            // この関数はVRでは直接使用しません。
+            function handleTouchEnd(event) {
+                // VRコントローラーの入力に置き換えられるため、この関数は事実上無効になります。
+            }
+
+            function onSelectStart(event) {
+                // VRコントローラーのトリガーボタンが押されたときの処理
+                console.log("Select start event triggered");
+
+                // レイキャスターの交差判定
+                const intersects = raycaster.intersectObjects(placedObjects, true);
+
+                if (appState === 'IDLE' && intersects.length > 0) {
+                    let targetObject = intersects[0].object;
+                    while (targetObject.parent && !placedObjects.includes(targetObject)) {
+                        targetObject = targetObject.parent;
                     }
-                }
-
-                if (!gestureState.isInteracting) return;
-                const activeObject = (appState === 'PLACING' || appState === 'EDITING') ? (previewObject || selectedObject) : null;
-                if (!activeObject || !isEditMode) return;
-
-                if (gestureState.touchCount === 1 && event.touches.length === 1) {
-                    const currentX = event.touches[0].clientX;
-                    const deltaX = currentX - gestureState.lastX;
-                    activeObject.rotation.y += deltaX * 0.01;
-                    gestureState.lastX = currentX;
-
-                } else if (gestureState.touchCount >= 2 && event.touches.length >= 2) {
-                    if (gestureState.initialDistance === 0) return;
-                    const currentDistance = getDistance(event.touches);
-                    const scaleRatio = currentDistance / gestureState.initialDistance;
-
-                    let newMultiplier = gestureState.originalMultiplier * scaleRatio;
-                    newMultiplier = Math.max(0.5, Math.min(2.0, newMultiplier));
-
-                    activeObject.scale.copy(activeObject.userData.initialScale).multiplyScalar(newMultiplier);
-                    activeObject.userData.scaleMultiplier = newMultiplier;
-
-                    const percent = (newMultiplier - 0.5) / 1.5;
-                    updateSliderHandlePosition(percent);
+                    if (placedObjects.includes(targetObject)) {
+                        selectAndEditObject(targetObject);
+                    }
+                } else if ((appState === 'PLACING' || appState === 'EDITING') && hoveredObject) {
+                    onConfirm();
                 }
             }
 
-            function handleTouchEnd(event) {
-                if (event.target !== event.currentTarget) return;
-
-                const wasLongPressTriggered = !gestureState.longPressTimer;
-                clearTimeout(gestureState.longPressTimer);
-                gestureState.longPressTimer = null;
-
-                const touchDuration = Date.now() - gestureState.startTime;
-                const touchEndX = event.changedTouches[0].clientX;
-                const touchEndY = event.changedTouches[0].clientY;
-                const distanceMoved = Math.sqrt(
-                    Math.pow(touchEndX - gestureState.startX, 2) +
-                    Math.pow(touchEndY - gestureState.startY, 2)
-                );
-
-                if (!wasLongPressTriggered && touchDuration < 200 && distanceMoved < 10) {
-                    onObjectTap(event);
-                }
-
-                if (event.touches.length === 0) {
-                    gestureState.isInteracting = false;
-                }
-                if (event.touches.length > 0 && event.touches.length !== gestureState.touchCount) {
-                    handleTouchStart(event);
-                }
-                gestureState.touchCount = event.touches.length;
+            function onSelectEnd(event) {
+                // VRコントローラーのトリガーボタンが離されたときの処理
+                console.log("Select end event triggered");
             }
 
             function updateSliderForObject(object) {
@@ -1739,7 +1629,6 @@
                 previewObject.userData.initialScale = previewObject.scale.clone();
                 previewObject.userData.scaleMultiplier = 1.0;
                 previewObject.userData.centerOffset = initialCenter.multiplyScalar(scaleFactor);
-                // ❌マークの大きさを調整 (0.2に修正)
                 previewObject.userData.crossMarkScale = Math.max(size.x, size.z) * scaleFactor;
 
                 previewObject.visible = false;
@@ -1773,13 +1662,12 @@
             function onConfirm() {
                 if (appState === 'PLACING') {
                     placeNewObject();
-                    // placeNewObject()関数内でappStateが'IDLE'に設定されます
                 } else if (appState === 'EDITING') {
                     setObjectTransparency(selectedObject, false);
                     selectedObject = null;
-                    appState = 'IDLE'; // 状態を'IDLE'にリセット
+                    appState = 'IDLE';
                 }
-                updateUI(); // 状態変更後にUIを更新
+                updateUI();
             }
 
             function onRotate(direction) {
@@ -1909,11 +1797,11 @@
             }
 
             function handleHover() {
-                if (gestureState.isInteracting || isRotatingContinuously || gestureState.longPressTimer) {
+                if (isRotatingContinuously) {
                     if(hoveredObject) {
-                                setObjectTransparency(hoveredObject, false);
-                                hoveredObject = null;
-                                updateUI();
+                        setObjectTransparency(hoveredObject, false);
+                        hoveredObject = null;
+                        updateUI();
                     }
                     return;
                 }
@@ -1926,8 +1814,13 @@
                     }
                     return;
                 }
+                
+                // VRコントローラーのレイキャスターを更新
+                const tempMatrix = new THREE.Matrix4();
+                tempMatrix.identity().extractRotation(controller0.matrixWorld);
+                raycaster.ray.origin.setFromMatrixPosition(controller0.matrixWorld);
+                raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
-                raycaster.setFromCamera({ x: 0, y: 0 }, camera);
                 const intersects = raycaster.intersectObjects(placedObjects, true);
                 let newHoveredObject = null;
                 if (intersects.length > 0) {
@@ -1993,12 +1886,9 @@
                     }
                 }
 
-                // --- VR向けに修正 ---
-                // VRセッションがアクティブな間はここで処理を続行
                 if (!renderer.xr.isPresenting) {
                     return;
                 }
-                // --- 修正箇所終了 ---
 
                 if (isRotatingContinuously && (appState === 'PLACING' || appState === 'EDITING')) {
                     const target = (appState === 'PLACING') ? previewObject : selectedObject;
@@ -2032,7 +1922,7 @@
                                 updateUI();
                             }
 
-                            const Y_TOLERANCE = 0.2; // 20cmの許容範囲
+                            const Y_TOLERANCE = 0.2;
                             const isOnFloor = Math.abs(hitY - floorY) < Y_TOLERANCE;
 
                             if (instructionText.style.display !== 'none') {
@@ -2047,12 +1937,11 @@
                                 if(activeObject) activeObject.visible = true;
 
                                 if (appState === 'PLACING' || appState === 'EDITING') {
-                                    // 衝突判定ロジック
                                     let isColliding = false;
-                                    if (activeObject) { // activeObjectが存在する場合のみ衝突判定を行う
+                                    if (activeObject) {
                                         const activeObjectBox = new THREE.Box3().setFromObject(activeObject);
                                         for (const placedObj of placedObjects) {
-                                            if (placedObj === activeObject) continue; // 自身とは衝突判定しない
+                                            if (placedObj === activeObject) continue;
                                             const placedObjBox = new THREE.Box3().setFromObject(placedObj);
                                             if (activeObjectBox.intersectsBox(placedObjBox)) {
                                                 isColliding = true;
@@ -2063,21 +1952,19 @@
 
                                     isPlaceable = isOnFloor && !isColliding;
 
-                                    if(reticle) reticle.visible = isPlaceable; // 配置可能な場合のみレティクル表示
-                                    crossMark.visible = !isPlaceable; // 配置不可能な場合のみクロスマーク表示
+                                    if(reticle) reticle.visible = isPlaceable;
+                                    crossMark.visible = !isPlaceable;
 
                                     if (crossMark.visible && activeObject) {
                                         crossMark.position.copy(activeObject.position);
-                                        // 家具の底面中央に十字マークを合わせるためのオフセット調整
                                         const box = new THREE.Box3().setFromObject(activeObject);
                                         const center = new THREE.Vector3();
                                         box.getCenter(center);
                                         const size = box.getSize(new THREE.Vector3());
-                                        crossMark.position.y = activeObject.position.y + (size.y / 2) + 0.01; // 家具の底面から少し上に配置
-
-                                        const scale = activeObject.userData.crossMarkScale * 0.2; // ❌マークの大きさを0.2に修正
+                                        crossMark.position.y = activeObject.position.y + (size.y / 2) + 0.01;
+                                        const scale = activeObject.userData.crossMarkScale * 0.2;
                                         crossMark.scale.set(scale, scale, scale);
-                                        crossMark.quaternion.copy(camera.quaternion); // カメラの向きに合わせる
+                                        crossMark.quaternion.copy(camera.quaternion);
                                     }
                                 } else {
                                     if(reticle) reticle.visible = true;

@@ -54,7 +54,7 @@
 </head>
 <body>
     <div id="title-container">
-        <h1>VRシンプル起動テスト</h1>
+        <h1>VR家具配置シミュレーション</h1>
     </div>
 
     <script type="importmap">
@@ -99,10 +99,10 @@
             scene.add(directionalLight);
 
             const floorGeometry = new THREE.PlaneGeometry(100, 100);
-            const floorMaterial = new THREE.MeshBasicMaterial({ color: 0x4a4a4a }); // 床の色を暗めに変更
+            const floorMaterial = new THREE.MeshBasicMaterial({ color: 0x4a4a4a });
             const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
             floorMesh.rotation.x = -Math.PI / 2;
-            floorMesh.position.y = -0.5; // 少し下に配置
+            floorMesh.position.y = -0.5;
             scene.add(floorMesh);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -154,15 +154,21 @@
 
             // 利き手でないコントローラー（0番）
             controller1 = renderer.xr.getController(0);
+            controller1.addEventListener('selectstart', onSelectStart);
+            controller1.addEventListener('selectend', onSelectEnd);
             scene.add(controller1);
-            controllerGrip1 = renderer.xr.getControllerGrip(0);
+            
+            const controllerGrip1 = renderer.xr.getControllerGrip(0);
             controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
             scene.add(controllerGrip1);
 
             // 利き手（1番）
             controller2 = renderer.xr.getController(1);
+            controller2.addEventListener('selectstart', onObjectSelectStart);
+            controller2.addEventListener('selectend', onObjectSelectEnd);
             scene.add(controller2);
-            controllerGrip2 = renderer.xr.getControllerGrip(1);
+            
+            const controllerGrip2 = renderer.xr.getControllerGrip(1);
             controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
             scene.add(controllerGrip2);
         }
@@ -215,6 +221,44 @@
             context.fillText(label, width / 2, height / 2);
             return new THREE.CanvasTexture(canvas);
         }
+
+        function onSelectStart(event) {
+            const controller = event.target;
+            
+            tempMatrix.identity().extractRotation(controller.matrixWorld);
+            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+
+            const intersections = raycaster.intersectObjects(vrUIContainer.children, true);
+            if (intersections.length > 0) {
+                const intersection = intersections[0];
+                const button = intersection.object.parent;
+                if (button && button.userData.onClick) {
+                    button.userData.onClick();
+                }
+            }
+        }
+
+        function onSelectEnd(event) {}
+
+        function onObjectSelectStart(event) {
+            const controller = event.target;
+
+            tempMatrix.identity().extractRotation(controller.matrixWorld);
+            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+            
+            const uiIntersections = raycaster.intersectObjects(vrUIContainer.children, true);
+            if (uiIntersections.length > 0) {
+                const uiButton = uiIntersections[0].object.parent;
+                if (uiButton && uiButton.userData.onClick) {
+                    uiButton.userData.onClick();
+                    return;
+                }
+            }
+        }
+
+        function onObjectSelectEnd(event) {}
 
         function render() {
             renderer.render(scene, camera);

@@ -29,25 +29,6 @@
             color: white;
             text-shadow: 0 2px 8px rgba(0,0,0,0.5);
         }
-        #ARButton {
-            color: white !important;
-            background-color: rgba(255, 255, 255, 0.2) !important;
-            border: 1px solid rgba(255, 255, 255, 0.3) !important;
-            backdrop-filter: blur(10px) !important;
-            border-radius: 9999px !important;
-            font-size: 16px !important;
-            font-weight: bold !important;
-            padding: 14px 24px !important;
-            min-width: 220px !important;
-            box-shadow: none !important;
-            opacity: 1 !important;
-            position: absolute !important;
-            bottom: 15% !important;
-            left: 50% !important;
-            transform: translateX(-50%) !important;
-            z-index: 100 !important;
-            white-space: nowrap !important;
-        }
         #overlay {
             position: fixed;
             top: 0;
@@ -844,8 +825,8 @@
         </div>
 
         <div id="instruction-text">
-            <span style="font-size: 1.25em; font-weight: bold;">床を認識中<span id="loading-dots"></span></span><br><br>
-            カメラをゆっくりと<br>床に向けて<br>動かしてください
+            <span style="font-size: 1.25em; font-weight: bold;">VR空間を認識中<span id="loading-dots"></span></span><br><br>
+            コントローラーをゆっくりと動かしてください
         </div>
 
         <button id="mode-switch-button">
@@ -1004,57 +985,16 @@
             const objectsToDelete = [];
             const clock = new THREE.Clock();
 
-            const gestureState = {
-                touchCount: 0,
-                initialDistance: 0.0,
-                lastX: 0,
-                isInteracting: false,
-                originalMultiplier: 1.0,
-                startTime: 0,
-                startX: 0,
-                startY: 0,
-                longPressTimer: null,
-            };
-
-            let isRotatingContinuously = false;
-            let continuousRotationDirection = 0;
+            // AR版のタッチジェスチャー関連の変数を削除
+            // const gestureState = { ... };
+            // let isRotatingContinuously = false;
+            // let continuousRotationDirection = 0;
 
             let controller0, controller1;
 
             init();
 
-            function createCrossMark() {
-                const canvas = document.createElement('canvas');
-                const size = 256;
-                canvas.width = size;
-                canvas.height = size;
-                const context = canvas.getContext('2d');
-                context.fillStyle = 'rgba(204, 0, 0, 0.8)';
-                context.beginPath();
-                context.arc(size / 2, size / 2, size / 2, 0, 2 * Math.PI);
-                context.fill();
-                context.strokeStyle = 'white';
-                context.lineWidth = size * 0.1;
-                context.lineCap = 'round';
-                context.beginPath();
-                const margin = size * 0.25;
-                context.moveTo(margin, margin);
-                context.lineTo(size - margin, size - margin);
-                context.moveTo(size - margin, margin);
-                context.lineTo(margin, size - margin);
-                context.stroke();
-                const texture = new THREE.CanvasTexture(canvas);
-                const material = new THREE.MeshBasicMaterial({
-                    map: texture,
-                    transparent: true,
-                    depthTest: false
-                });
-                const geometry = new THREE.PlaneGeometry(1, 1);
-                const plane = new THREE.Mesh(geometry, material);
-                plane.renderOrder = 999;
-                plane.visible = false;
-                return plane;
-            }
+            // AR版のcreateCrossMark関数は削除
 
             function preloadModels() {
                 const loadingPromises = furnitureData.map(item => {
@@ -1079,8 +1019,9 @@
                 selectedObject = null;
                 hoveredObject = null;
                 
-                if(reticle) scene.remove(reticle);
-                reticle = null;
+                // AR版のreticleは削除
+                // if(reticle) scene.remove(reticle);
+                // reticle = null;
 
                 appState = 'IDLE';
                 isFloorDetected = false;
@@ -1096,8 +1037,9 @@
                 camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
                 scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 3));
 
-                crossMark = createCrossMark();
-                scene.add(crossMark);
+                // AR版のcrossMarkは削除
+                // crossMark = createCrossMark();
+                // scene.add(crossMark);
 
                 renderer = new THREE.WebGLRenderer({
                     antialias: true,
@@ -1108,10 +1050,11 @@
                 renderer.xr.enabled = true;
                 document.body.appendChild(renderer.domElement);
 
-                const overlay = document.getElementById('overlay');
-                overlay.addEventListener('touchstart', handleTouchStart, { passive: false });
-                overlay.addEventListener('touchmove', handleTouchMove, { passive: false });
-                overlay.addEventListener('touchend', handleTouchEnd);
+                // AR版のタッチイベントを削除
+                // const overlay = document.getElementById('overlay');
+                // overlay.addEventListener('touchstart', handleTouchStart, { passive: false });
+                // overlay.addEventListener('touchmove', handleTouchMove, { passive: false });
+                // overlay.addEventListener('touchend', handleTouchEnd);
 
                 document.getElementById('add-button').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 32px; height: 32px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>`;
                 document.getElementById('edit-button').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 28px; height: 28px;"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" /></svg>`;
@@ -1129,7 +1072,7 @@
                     resetScene();
                     isEditMode = true;
                     updateUI();
-                    initializeVRExperience(); // VR向けの初期化関数に変更
+                    initializeVRExperience();
                     preloadModels();
                 });
 
@@ -1175,21 +1118,15 @@
                 const line = new THREE.Line(geometry);
                 line.name = 'line';
                 line.scale.z = 5; // 光線の長さを設定
-                // コントローラー0にレイを追加
+                
+                // 両方のコントローラーにレイを追加
                 const line0 = line.clone();
                 controller0.add(line0);
                 
-                // コントローラー1にレイを追加
                 const line1 = line.clone();
                 controller1.add(line1);
 
-                // AR版のreticleはVRでは不要なので削除
-                if (reticle) {
-                    scene.remove(reticle);
-                    reticle = null;
-                }
-
-                // AR版のタッチイベントをVRコントローラーイベントに置き換える
+                // VRコントローラーイベントリスナー
                 controller0.addEventListener('selectstart', onSelectStart);
                 controller0.addEventListener('selectend', onSelectEnd);
                 
@@ -1450,49 +1387,38 @@
                 sliderHandle.addEventListener('mousedown', onSliderDragStart);
                 document.addEventListener('mousemove', onSliderDragMove);
                 document.addEventListener('mouseup', onSliderDragEnd);
-                sliderHandle.addEventListener('touchstart', onSliderDragStart, { passive: false });
-                document.addEventListener('touchmove', onSliderDragMove, { passive: false });
-                document.addEventListener('touchend', onSliderDragEnd);
+                // AR版のタッチイベントを削除
+                // sliderHandle.addEventListener('touchstart', onSliderDragStart, { passive: false });
+                // document.addEventListener('touchmove', onSliderDragMove, { passive: false });
+                // document.addEventListener('touchend', onSliderDragEnd);
                 
-                let touchStartX = 0;
-                let touchEndX = 0;
-                const swipeThreshold = 50;
+                // AR版のタッチイベントを削除
+                // let touchStartX = 0;
+                // let touchEndX = 0;
+                // const swipeThreshold = 50;
 
-                modalContent.addEventListener('touchstart', (e) => {
-                    if (e.target.closest('.category-tab-button') || e.target.closest('#close-modal-button') || e.target.closest('#search-input')) {
-                        return; 
-                    }
-                    touchStartX = e.changedTouches[0].clientX;
-                }, { passive: true });
+                // modalContent.addEventListener('touchstart', (e) => {
+                //     if (e.target.closest('.category-tab-button') || e.target.closest('#close-modal-button') || e.target.closest('#search-input')) {
+                //         return; 
+                //     }
+                //     touchStartX = e.changedTouches[0].clientX;
+                // }, { passive: true });
 
-                modalContent.addEventListener('touchend', (e) => {
-                    if (e.target.closest('.category-tab-button') || e.target.closest('#close-modal-button') || e.target.closest('#search-input')) {
-                        return; 
-                    }
-                    touchEndX = e.changedTouches[0].clientX;
-                    handleSwipeGesture();
-                }, { passive: true });
+                // modalContent.addEventListener('touchend', (e) => {
+                //     if (e.target.closest('.category-tab-button') || e.target.closest('#close-modal-button') || e.target.closest('#search-input')) {
+                //         return; 
+                //     }
+                //     touchEndX = e.changedTouches[0].clientX;
+                //     handleSwipeGesture();
+                // }, { passive: true });
 
-                function handleSwipeGesture() {
-                    const swipeDistance = touchEndX - touchStartX;
-
-                    if (Math.abs(swipeDistance) > swipeThreshold) {
-                        if (swipeDistance < 0) {
-                            currentCategoryIndex++;
-                            if (currentCategoryIndex >= allCategories.length) {
-                                currentCategoryIndex = 0;
-                            }
-                        } else {
-                            currentCategoryIndex--;
-                            if (currentCategoryIndex < 0) {
-                                currentCategoryIndex = allCategories.length - 1;
-                            }
-                        }
-                        const newCategory = allCategories[currentCategoryIndex];
-                        activateCategoryTab(newCategory);
-                        displayFurniture(newCategory, searchInput.value);
-                    }
-                }
+                // AR版のタッチジェスチャー関連関数を削除
+                // function handleSwipeGesture() { ... }
+                // function onObjectTap(event) { ... }
+                // function handleLongPress(tappedObject) { ... }
+                // function handleTouchStart(event) { ... }
+                // function handleTouchMove(event) { ... }
+                // function handleTouchEnd(event) { ... }
 
                 function activateCategoryTab(categoryToActivate) {
                     document.querySelectorAll('.category-tab-button').forEach(btn => {
@@ -1505,65 +1431,13 @@
                 }
             }
 
-            function setupRotationButtonEvents(button, direction) {
-                let pressTimer = null;
-                const pressStart = (e) => {
-                    e.preventDefault();
-                    pressTimer = setTimeout(() => {
-                        isRotatingContinuously = true;
-                        continuousRotationDirection = direction;
-                    }, 300);
-                };
-                const pressEnd = () => {
-                    clearTimeout(pressTimer);
-                    if (!isRotatingContinuously) {
-                        onRotate(direction);
-                    }
-                    isRotatingContinuously = false;
-                };
-                button.addEventListener('mousedown', pressStart);
-                button.addEventListener('touchstart', pressStart, { passive: false });
-                button.addEventListener('mouseup', pressEnd);
-                button.addEventListener('touchend', pressEnd);
-                button.addEventListener('mouseleave', pressEnd);
-            }
-
-            function getDistance(touches) {
-                const dx = touches[0].clientX - touches[1].clientX;
-                const dy = touches[0].clientY - touches[1].clientY;
-                return Math.sqrt(dx * dx + dy * dy);
-            }
-
-            // この関数はVRでは直接使用しません。
-            function onObjectTap(event) {
-                // VRコントローラーの入力に置き換えられるため、この関数は事実上無効になります。
-            }
-
-            // この関数はVRでは直接使用しません。
-            function handleLongPress(tappedObject) {
-                // VRコントローラーの入力に置き換えられるため、この関数は事実上無効になります。
-            }
-
-            // この関数はVRでは直接使用しません。
-            function handleTouchStart(event) {
-                // VRコントローラーの入力に置き換えられるため、この関数は事実上無効になります。
-            }
-
-            // この関数はVRでは直接使用しません。
-            function handleTouchMove(event) {
-                // VRコントローラーの入力に置き換えられるため、この関数は事実上無効になります。
-            }
-
-            // この関数はVRでは直接使用しません。
-            function handleTouchEnd(event) {
-                // VRコントローラーの入力に置き換えられるため、この関数は事実上無効になります。
-            }
+            // AR版のタッチジェスチャー関連関数を削除
+            // function setupRotationButtonEvents(button, direction) { ... }
+            // function getDistance(touches) { ... }
 
             function onSelectStart(event) {
-                // VRコントローラーのトリガーボタンが押されたときの処理
                 console.log("Select start event triggered");
 
-                // レイキャスターの交差判定
                 const intersects = raycaster.intersectObjects(placedObjects, true);
 
                 if (appState === 'IDLE' && intersects.length > 0) {
@@ -1580,7 +1454,6 @@
             }
 
             function onSelectEnd(event) {
-                // VRコントローラーのトリガーボタンが離されたときの処理
                 console.log("Select end event triggered");
             }
 
@@ -1635,7 +1508,8 @@
                 previewObject.userData.initialScale = previewObject.scale.clone();
                 previewObject.userData.scaleMultiplier = 1.0;
                 previewObject.userData.centerOffset = initialCenter.multiplyScalar(scaleFactor);
-                previewObject.userData.crossMarkScale = Math.max(size.x, size.z) * scaleFactor;
+                // VR版ではARのマーカーが不要なため、この行も削除
+                // previewObject.userData.crossMarkScale = Math.max(size.x, size.z) * scaleFactor;
 
                 previewObject.visible = false;
                 scene.add(previewObject);
@@ -1711,9 +1585,17 @@
 
             function onDelete() {
                 if (appState === 'EDITING' && selectedObject) {
-                    handleLongPress(selectedObject);
+                    // VRでは長押しジェスチャーではなく、コントローラーのボタン操作で削除を促す
+                    if (confirmDialog.style.display !== 'flex') {
+                        objectPendingDeletion = selectedObject;
+                        confirmDialog.style.display = 'flex';
+                    }
                 } else if (appState === 'PLACING' && previewObject) {
-                    handleLongPress(previewObject);
+                    // VRでは長押しジェスチャーではなく、コントローラーのボタン操作で削除を促す
+                    if (confirmDialog.style.display !== 'flex') {
+                        objectPendingDeletion = previewObject;
+                        confirmDialog.style.display = 'flex';
+                    }
                 }
             }
 
@@ -1780,7 +1662,8 @@
 
                     switch (appState) {
                         case 'IDLE':
-                            addButton.style.display = isFloorDetected ? 'flex' : 'none';
+                            // VR版では常にフロアが認識されるため、常時表示でOK
+                            addButton.style.display = 'flex';
                             if (hoveredObject) {
                                 editButton.style.display = 'flex';
                             }
@@ -1803,32 +1686,16 @@
             }
 
             function handleHover() {
-                if (isRotatingContinuously) {
-                    if(hoveredObject) {
-                        setObjectTransparency(hoveredObject, false);
-                        hoveredObject = null;
-                        updateUI();
-                    }
-                    return;
-                }
+                const targetRay = controller0; // 利き手でUIを操作
 
-                if (!isEditMode || appState !== 'IDLE') {
-                    if (hoveredObject) {
-                        setObjectTransparency(hoveredObject, false);
-                        hoveredObject = null;
-                        updateUI();
-                    }
-                    return;
-                }
-                
-                // VRコントローラーのレイキャスターを更新
                 const tempMatrix = new THREE.Matrix4();
-                tempMatrix.identity().extractRotation(controller0.matrixWorld);
-                raycaster.ray.origin.setFromMatrixPosition(controller0.matrixWorld);
+                tempMatrix.identity().extractRotation(targetRay.matrixWorld);
+                raycaster.ray.origin.setFromMatrixPosition(targetRay.matrixWorld);
                 raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
                 const intersects = raycaster.intersectObjects(placedObjects, true);
                 let newHoveredObject = null;
+
                 if (intersects.length > 0) {
                     let currentObject = intersects[0].object;
                     while (currentObject) {
@@ -1895,122 +1762,39 @@
                 if (!renderer.xr.isPresenting) {
                     return;
                 }
+                
+                // VR版では不要なAR関連のロジックを削除
+                // if (isRotatingContinuously && ...) { ... }
 
-                if (isRotatingContinuously && (appState === 'PLACING' || appState === 'EDITING')) {
-                    const target = (appState === 'PLACING') ? previewObject : selectedObject;
-                    if (target) {
-                        const rotationSpeed = 0.04;
-                        target.rotation.y += rotationSpeed * continuousRotationDirection;
-                    }
-                }
-
-                handleHover();
+                // AR版のホバー処理を削除し、VR用に置き換える
+                // handleHover();
 
                 const instructionText = document.getElementById('instruction-text');
-                let isPlaceable = false;
+                // VR版では常にフロアが認識されるため、この変数は不要
+                // let isPlaceable = false;
                 const activeObject = (appState === 'PLACING') ? previewObject : selectedObject;
 
-                if (renderer.xr.getFrame()) {
-                    const frame = renderer.xr.getFrame();
-                    const referenceSpace = renderer.xr.getReferenceSpace();
-                    if (hitTestSource) {
-                        const hitTestResults = frame.getHitTestResults(hitTestSource);
+                // VR版ではARからのヒットテストは不要
+                // if (renderer.xr.getFrame()) {
+                //     const frame = renderer.xr.getFrame();
+                //     const referenceSpace = renderer.xr.getReferenceSpace();
+                //     if (hitTestSource) {
+                //         const hitTestResults = frame.getHitTestResults(hitTestSource);
+                //         ...
+                //     }
+                // }
 
-                        if (hitTestResults.length > 0) {
-                            const hit = hitTestResults[0];
-                            const hitPose = hit.getPose(referenceSpace);
-                            const hitY = hitPose.transform.position.y;
+                // VR版ではARのマーカーが不要なため、このUI制御も削除
+                // if (isEditMode && (appState === 'PLACING' || appState === 'EDITING')) {
+                //     const decisionConfirmButton = document.querySelector('#decision-controls #confirm-button');
+                //     decisionConfirmButton.disabled = !isPlaceable;
+                // }
 
-                            if (floorY === null) floorY = hitY;
-
-                            if (!isFloorDetected) {
-                                isFloorDetected = true;
-                                updateUI();
-                            }
-
-                            const Y_TOLERANCE = 0.2;
-                            const isOnFloor = Math.abs(hitY - floorY) < Y_TOLERANCE;
-
-                            if (instructionText.style.display !== 'none') {
-                                instructionText.style.display = 'none';
-                                stopDotAnimation();
-                            }
-
-                            if (isEditMode) {
-                                if (activeObject && !gestureState.isInteracting && !isRotatingContinuously) {
-                                    activeObject.position.setFromMatrixPosition(reticle.matrix);
-                                }
-                                if(activeObject) activeObject.visible = true;
-
-                                if (appState === 'PLACING' || appState === 'EDITING') {
-                                    let isColliding = false;
-                                    if (activeObject) {
-                                        const activeObjectBox = new THREE.Box3().setFromObject(activeObject);
-                                        for (const placedObj of placedObjects) {
-                                            if (placedObj === activeObject) continue;
-                                            const placedObjBox = new THREE.Box3().setFromObject(placedObj);
-                                            if (activeObjectBox.intersectsBox(placedObjBox)) {
-                                                isColliding = true;
-                                                break;
-                                            }
-                                        }
-                                    }
-
-                                    isPlaceable = isOnFloor && !isColliding;
-
-                                    if(reticle) reticle.visible = isPlaceable;
-                                    crossMark.visible = !isPlaceable;
-
-                                    if (crossMark.visible && activeObject) {
-                                        crossMark.position.copy(activeObject.position);
-                                        const box = new THREE.Box3().setFromObject(activeObject);
-                                        const center = new THREE.Vector3();
-                                        box.getCenter(center);
-                                        const size = box.getSize(new THREE.Vector3());
-                                        crossMark.position.y = activeObject.position.y + (size.y / 2) + 0.01;
-                                        const scale = activeObject.userData.crossMarkScale * 0.2;
-                                        crossMark.scale.set(scale, scale, scale);
-                                        crossMark.quaternion.copy(camera.quaternion);
-                                    }
-                                } else {
-                                    if(reticle) reticle.visible = true;
-                                    crossMark.visible = false;
-                                }
-                            } else {
-                                if(reticle) reticle.visible = false;
-                                crossMark.visible = false;
-                            }
-                        } else {
-                            isPlaceable = false;
-                            if(reticle) reticle.visible = false;
-                            crossMark.visible = false;
-                            if (activeObject) activeObject.visible = false;
-                            if (instructionText.style.display !== 'block' && !isFloorDetected) {
-                                instructionText.style.display = 'block';
-                                startDotAnimation();
-                            }
-                        }
-                    }
-                }
-
-                if (isEditMode && (appState === 'PLACING' || appState === 'EDITING')) {
-                    const decisionConfirmButton = document.querySelector('#decision-controls #confirm-button');
-                    decisionConfirmButton.disabled = !isPlaceable;
-                }
-
-                if (!hitTestSourceRequested && renderer.xr.getSession()) {
-                    const session = renderer.xr.getSession();
-                    session.requestReferenceSpace('viewer').then((referenceSpace) => {
-                        session.requestHitTestSource({ space: referenceSpace }).then((source) => {
-                            hitTestSource = source;
-                        });
-                    });
-                    session.addEventListener('end', () => {
-                        hitTestSourceRequested = false; hitTestSource = null;
-                    });
-                    hitTestSourceRequested = true;
-                }
-
+                // AR版のヒットテスト初期化ロジックを削除
+                // if (!hitTestSourceRequested && renderer.xr.getSession()) {
+                //     ...
+                // }
+                
                 renderer.render(scene, camera);
             }
         }
@@ -2019,4 +1803,3 @@
     </script>
 </body>
 </html>
-

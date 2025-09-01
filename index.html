@@ -70,27 +70,39 @@
         import * as THREE from 'three';
         import { VRButton } from 'three/addons/webxr/VRButton.js';
         import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
         let camera, scene, renderer;
         let controller1, controller2;
         let controllerGrip1, controllerGrip2;
+        let vrUIContainer;
+        let raycaster;
+        const tempMatrix = new THREE.Matrix4();
+        let hoveredObject = null;
+        const placedObjects = [];
+        const preloadedModels = new Map();
+
+        const furnitureData = [
+            { name: 'ソファ', file: 'https://cdn.glitch.global/60451e5e-e475-4389-9b90-f20387b9e3e9/sofa.glb?v=1699999999' },
+            { name: 'テーブル', file: 'https://cdn.glitch.global/60451e5e-e475-4389-9b90-f20387b9e3e9/dining_table.glb?v=1699999999' },
+            { name: '本棚', file: 'https://cdn.glitch.global/60451e5e-e475-4389-9b90-f20387b9e3e9/bookshelf.glb?v=1699999999' }
+        ];
 
         function init() {
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
 
-            // 光源を追加
             const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
             scene.add(ambientLight);
             const directionalLight = new THREE.DirectionalLight(0xffffff, 2.5);
             directionalLight.position.set(0, 5, 5);
             scene.add(directionalLight);
 
-            // 床をシミュレートする白いメッシュを追加
             const floorGeometry = new THREE.PlaneGeometry(100, 100);
-            const floorMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const floorMaterial = new THREE.MeshBasicMaterial({ color: 0x4a4a4a }); // 床の色を暗めに変更
             const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
             floorMesh.rotation.x = -Math.PI / 2;
+            floorMesh.position.y = -0.5; // 少し下に配置
             scene.add(floorMesh);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -103,23 +115,38 @@
                 requiredFeatures: ['local-floor'],
                 optionalFeatures: ['hand-tracking']
             }));
+            
+            raycaster = new THREE.Raycaster();
 
             renderer.xr.addEventListener('sessionstart', onSessionStart);
             renderer.xr.addEventListener('sessionend', onSessionEnd);
 
             renderer.setAnimationLoop(render);
+
+            preloadModels();
+        }
+
+        function preloadModels() {
+            const loader = new GLTFLoader();
+            furnitureData.forEach(item => {
+                loader.load(item.file, (gltf) => {
+                    preloadedModels.set(item.file, gltf);
+                });
+            });
         }
 
         function onSessionStart() {
             document.getElementById('title-container').style.display = 'none';
-            setupControllers(); // セッション開始後にコントローラーをセットアップ
+            setupControllers();
+            setupVRUI();
         }
 
         function onSessionEnd() {
             document.getElementById('title-container').style.display = 'block';
-            // セッション終了時にコントローラーをシーンから削除
             if (controllerGrip1) scene.remove(controllerGrip1);
             if (controllerGrip2) scene.remove(controllerGrip2);
+            if (controller1) scene.remove(controller1);
+            if (controller2) scene.remove(controller2);
         }
         
         function setupControllers() {
@@ -138,6 +165,55 @@
             controllerGrip2 = renderer.xr.getControllerGrip(1);
             controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
             scene.add(controllerGrip2);
+        }
+        
+        function setupVRUI() {
+            vrUIContainer = new THREE.Group();
+
+            const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x4A5568, transparent: true, opacity: 0.8 });
+            const panelGeometry = new THREE.PlaneGeometry(0.5, 0.4);
+            const panelMesh = new THREE.Mesh(panelGeometry, panelMaterial);
+            panelMesh.position.z = -0.01;
+            vrUIContainer.add(panelMesh);
+
+            const addButton = createVRButton(0.2, 0.08, 0x1E90FF, '追加', () => {
+                console.log('追加ボタンが押されました');
+            });
+            addButton.position.set(0, 0.1, 0);
+            vrUIContainer.add(addButton);
+
+            const nonDominantController = renderer.xr.getController(0);
+            if (nonDominantController) {
+                nonDominantController.add(vrUIContainer);
+                vrUIContainer.position.set(-0.15, 0.1, -0.2);
+                vrUIContainer.rotation.y = Math.PI / 4;
+            }
+        }
+        
+        function createVRButton(width, height, color, label, onClick) {
+            const group = new THREE.Group();
+            const texture = createButtonTexture(width * 256, height * 256, label);
+            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, color: color });
+            const buttonMesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
+            buttonMesh.userData.originalColor = new THREE.Color(color);
+            group.add(buttonMesh);
+            group.userData.onClick = onClick;
+            return group;
+        }
+
+        function createButtonTexture(width, height, label) {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d');
+            context.fillStyle = '#FFFFFF';
+            context.fillRect(0, 0, width, height);
+            context.fillStyle = '#000000';
+            context.font = `bold ${height * 0.5}px sans-serif`;
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(label, width / 2, height / 2);
+            return new THREE.CanvasTexture(canvas);
         }
 
         function render() {

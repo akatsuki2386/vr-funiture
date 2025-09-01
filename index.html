@@ -136,7 +136,7 @@
             renderer.xr.addEventListener('sessionstart', onSessionStart);
             renderer.xr.addEventListener('sessionend', onSessionEnd);
 
-            animate(); // この呼び出しは `onSessionStart` 内に移動されます
+            renderer.setAnimationLoop(render);
 
             preloadModels();
         }
@@ -318,11 +318,7 @@
             controller.userData.isDragging = false;
             selectedObject = null;
         }
-
-        function animate() {
-            renderer.setAnimationLoop(render);
-        }
-
+        
         function render() {
             const session = renderer.xr.getSession();
             if (session) {
@@ -357,6 +353,7 @@
         }
         
         function handleInteractions(controller) {
+            if (!controller) return; // コントローラーがまだ存在しない場合は処理をスキップ
             const line = controller.children[0];
             
             tempMatrix.identity().extractRotation(controller.matrixWorld);

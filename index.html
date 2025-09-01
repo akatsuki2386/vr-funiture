@@ -269,6 +269,7 @@
 
         function onSelectStart(event) {
             const controller = event.target;
+            
             tempMatrix.identity().extractRotation(controller.matrixWorld);
             raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
             raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
@@ -324,6 +325,7 @@
         function render() {
             const session = renderer.xr.getSession();
             if (session) {
+                // レイキャストのホバー判定と視覚化
                 handleInteractions(controller1);
                 handleInteractions(controller2);
 
@@ -363,6 +365,7 @@
 
             const intersections = raycaster.intersectObjects(vrUIContainer.children, true);
             
+            // ホバー状態の更新
             if (intersections.length > 0) {
                 const intersection = intersections[0];
                 const object = intersection.object.parent;
@@ -375,6 +378,7 @@
                     hoveredObject.children[0].material.color.setHex(0xaaaaaa);
                 }
                 
+                // レイキャストの長さを更新
                 line.scale.z = intersection.distance;
             } else {
                 if (hoveredObject) {

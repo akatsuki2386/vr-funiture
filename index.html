@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>VRシンプル起動テスト</title>
+    <title>VR家具配置シミュレーション</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body {
@@ -69,20 +69,20 @@
     <script type="module">
         import * as THREE from 'three';
         import { VRButton } from 'three/addons/webxr/VRButton.js';
+        import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
         let camera, scene, renderer;
-        let ambientLight, directionalLight;
+        let controller1, controller2;
+        let controllerGrip1, controllerGrip2;
 
         function init() {
             scene = new THREE.Scene();
-
-            // VRセッション開始時に背景がレンダリングされるよう、カメラをセットアップ
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
 
             // 光源を追加
-            ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
             scene.add(ambientLight);
-            directionalLight = new THREE.DirectionalLight(0xffffff, 2.5);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 2.5);
             directionalLight.position.set(0, 5, 5);
             scene.add(directionalLight);
 
@@ -90,7 +90,7 @@
             const floorGeometry = new THREE.PlaneGeometry(100, 100);
             const floorMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
             const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
-            floorMesh.rotation.x = -Math.PI / 2; // 床のように水平に回転
+            floorMesh.rotation.x = -Math.PI / 2;
             scene.add(floorMesh);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -99,14 +99,48 @@
             renderer.xr.enabled = true;
             document.body.appendChild(renderer.domElement);
 
-            document.body.appendChild(VRButton.createButton(renderer));
+            document.body.appendChild(VRButton.createButton(renderer, {
+                requiredFeatures: ['local-floor'],
+                optionalFeatures: ['hand-tracking']
+            }));
 
-            // VRモードが開始すると、renderループが自動的に起動
+            renderer.xr.addEventListener('sessionstart', onSessionStart);
+            renderer.xr.addEventListener('sessionend', onSessionEnd);
+
             renderer.setAnimationLoop(render);
         }
 
+        function onSessionStart() {
+            document.getElementById('title-container').style.display = 'none';
+            setupControllers(); // セッション開始後にコントローラーをセットアップ
+        }
+
+        function onSessionEnd() {
+            document.getElementById('title-container').style.display = 'block';
+            // セッション終了時にコントローラーをシーンから削除
+            if (controllerGrip1) scene.remove(controllerGrip1);
+            if (controllerGrip2) scene.remove(controllerGrip2);
+        }
+        
+        function setupControllers() {
+            const controllerModelFactory = new XRControllerModelFactory();
+
+            // 利き手でないコントローラー（0番）
+            controller1 = renderer.xr.getController(0);
+            scene.add(controller1);
+            controllerGrip1 = renderer.xr.getControllerGrip(0);
+            controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
+            scene.add(controllerGrip1);
+
+            // 利き手（1番）
+            controller2 = renderer.xr.getController(1);
+            scene.add(controller2);
+            controllerGrip2 = renderer.xr.getControllerGrip(1);
+            controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
+            scene.add(controllerGrip2);
+        }
+
         function render() {
-            // ここにVRコントローラーの処理などを書く
             renderer.render(scene, camera);
         }
 

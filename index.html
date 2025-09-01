@@ -1175,7 +1175,13 @@
                 const line = new THREE.Line(geometry);
                 line.name = 'line';
                 line.scale.z = 5; // 光線の長さを設定
-                controller0.add(line.clone()); // 利き手コントローラーにレイを追加
+                // コントローラー0にレイを追加
+                const line0 = line.clone();
+                controller0.add(line0);
+                
+                // コントローラー1にレイを追加
+                const line1 = line.clone();
+                controller1.add(line1);
 
                 // AR版のreticleはVRでは不要なので削除
                 if (reticle) {
@@ -2013,3 +2019,4 @@
     </script>
 </body>
 </html>
+

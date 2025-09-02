@@ -3,8 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <title>VR Furniture Planner</title>
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://unpkg.com/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-event-set-component@4.2.1/dist/aframe-event-set-component.min.js"></script>
     
     <script>
       // 家具のデータ
@@ -14,40 +15,6 @@
           { id: 'chair', name: '椅子', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/chair.obj' },
       ];
 
-      // パネルUIとインタラクションを管理するカスタムコンポーネント
-      AFRAME.registerComponent('app-ui-manager', {
-        init: function() {
-          const el = this.el;
-          this.handedness = localStorage.getItem('handedness') || 'right'; // 利き手設定
-          
-          this.mainMenu = el.querySelector('#main-menu');
-          this.furnitureMenu = el.querySelector('#furniture-menu');
-          this.backButton = el.querySelector('#back-button');
-
-          this.setupEvents();
-          this.updateUI();
-        },
-        updateUI: function() {
-          this.mainMenu.setAttribute('visible', 'true');
-          this.furnitureMenu.setAttribute('visible', 'false');
-        },
-        setupEvents: function() {
-          const addButton = this.el.querySelector('#add-button');
-          if (addButton) {
-            addButton.addEventListener('click', () => {
-              this.mainMenu.setAttribute('visible', 'false');
-              this.furnitureMenu.setAttribute('visible', 'true');
-            });
-          }
-          if (this.backButton) {
-            this.backButton.addEventListener('click', () => {
-              this.furnitureMenu.setAttribute('visible', 'false');
-              this.mainMenu.setAttribute('visible', 'true');
-            });
-          }
-        }
-      });
-      
       document.addEventListener('DOMContentLoaded', () => {
         const vrScene = document.querySelector('a-scene');
         const handSelectionUI = document.getElementById('hand-selection-ui');
@@ -55,6 +22,53 @@
         const leftHandBtn = document.getElementById('left-hand-btn');
         const uiPanelHolder = document.getElementById('ui-panel-holder');
 
+        vrScene.addEventListener('enter-vr', () => {
+          handSelectionUI.style.display = 'none';
+
+          const handedness = localStorage.getItem('handedness');
+          const rightHand = document.getElementById('right-hand');
+          const leftHand = document.getElementById('left-hand');
+          
+          // レイキャストの追加
+          rightHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
+          leftHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
+          
+          // UIパネルをコントローラーの子要素としてアタッチ
+          if (handedness === 'right') {
+              leftHand.appendChild(uiPanelHolder);
+          } else {
+              rightHand.appendChild(uiPanelHolder);
+          }
+          
+          uiPanelHolder.setAttribute('position', '0 0.2 -0.5');
+          uiPanelHolder.setAttribute('rotation', '-15 0 0');
+          uiPanelHolder.setAttribute('visible', 'true');
+
+          // ボタンのイベントリスナー設定
+          const mainMenu = document.getElementById('main-menu');
+          const furnitureMenu = document.getElementById('furniture-menu');
+          
+          document.getElementById('add-button').addEventListener('click', () => {
+              mainMenu.setAttribute('visible', 'false');
+              furnitureMenu.setAttribute('visible', 'true');
+          });
+          
+          document.getElementById('back-button').addEventListener('click', () => {
+              furnitureMenu.setAttribute('visible', 'false');
+              mainMenu.setAttribute('visible', 'true');
+          });
+
+          furnitureData.forEach(furniture => {
+              const button = document.getElementById(`furniture-button-${furniture.id}`);
+              if (button) {
+                  button.addEventListener('click', () => {
+                      console.log(`${furniture.name}が選択されました！`);
+                  });
+              }
+          });
+        });
+
+        // 利き手選択のイベントリスナー
         rightHandBtn.addEventListener('click', () => {
           localStorage.setItem('handedness', 'right');
           vrScene.enterVR();
@@ -63,29 +77,6 @@
         leftHandBtn.addEventListener('click', () => {
           localStorage.setItem('handedness', 'left');
           vrScene.enterVR();
-        });
-
-        vrScene.addEventListener('enter-vr', () => {
-          handSelectionUI.style.display = 'none';
-
-          const handedness = localStorage.getItem('handedness');
-          const rightHand = document.getElementById('right-hand');
-          const leftHand = document.getElementById('left-hand');
-          const raycaster = 'objects: .collidable; showLine: true; far: 5;';
-          
-          rightHand.setAttribute('raycaster', raycaster);
-          leftHand.setAttribute('raycaster', raycaster);
-          
-          if (handedness === 'right') {
-            leftHand.appendChild(uiPanelHolder);
-          } else {
-            rightHand.appendChild(uiPanelHolder);
-          }
-          
-          uiPanelHolder.setAttribute('position', '0 0.2 -0.5');
-          uiPanelHolder.setAttribute('rotation', '-15 0 0');
-          uiPanelHolder.setAttribute('visible', 'true');
-          uiPanelHolder.setAttribute('app-ui-manager', ''); // カスタムコンポーネントをアタッチ
         });
       });
     </script>

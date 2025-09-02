@@ -8,14 +8,12 @@
         init: function() {
           const controllerEl = this.el;
           
-          // コントローラーが接続されたときのイベントリスナー
-          controllerEl.addEventListener('controllerconnected', (evt) => {
-            console.log(`${evt.detail.hand} hand controller connected.`);
-            
+          // エンティティがロードされた後にUIパネルを作成
+          controllerEl.addEventListener('loaded', () => {
             // 利き手ではない方（左手）のみUIパネルを作成
-            if (evt.detail.hand === 'left') {
+            if (controllerEl.getAttribute('hand-controls').hand === 'left') {
               const uiPanel = document.createElement('a-entity');
-              uiPanel.setAttribute('id', `ui-panel-${evt.detail.hand}`);
+              uiPanel.setAttribute('id', 'ui-panel-left');
               uiPanel.setAttribute('geometry', {
                 primitive: 'plane',
                 width: 0.5,
@@ -38,7 +36,7 @@
               controllerEl.appendChild(uiPanel);
             }
           });
-          
+
           // トリガーが押されたときの処理
           controllerEl.addEventListener('triggerdown', () => {
             console.log('Trigger pressed!');

@@ -35,7 +35,7 @@
             addButton.setAttribute('color', '#5cb85c');
             addButton.setAttribute('position', '0 0.3 0.01');
             addButton.setAttribute('text', 'value: モデルの追加; align: center; color: white;');
-            addButton.setAttribute('event-set__click', 'material.color: #4cae4c;');
+            addButton.setAttribute('add-collidable-class', '');
             
             const helpButton = document.createElement('a-plane');
             helpButton.setAttribute('width', '0.4');
@@ -43,6 +43,7 @@
             helpButton.setAttribute('color', '#f0ad4e');
             helpButton.setAttribute('position', '0 0 0.01');
             helpButton.setAttribute('text', 'value: 動作の説明; align: center; color: white;');
+            helpButton.setAttribute('add-collidable-class', '');
 
             const exitButton = document.createElement('a-plane');
             exitButton.setAttribute('width', '0.4');
@@ -50,6 +51,7 @@
             exitButton.setAttribute('color', '#d9534f');
             exitButton.setAttribute('position', '0 -0.3 0.01');
             exitButton.setAttribute('text', 'value: シミュレーションの終了; align: center; color: white;');
+            exitButton.setAttribute('add-collidable-class', '');
             
             mainMenu.appendChild(addButton);
             mainMenu.appendChild(helpButton);
@@ -65,7 +67,17 @@
 
         function handleHandSelection(handedness) {
             handSelectionUI.style.display = 'none';
-            scene.style.display = 'block';
+
+            // VRモードへ移行
+            if (scene.is('vr-mode')) {
+                // すでにVRモードの場合は何もしない
+            } else if (scene.hasLoaded) {
+                scene.enterVR();
+            } else {
+                scene.addEventListener('loaded', () => {
+                    scene.enterVR();
+                });
+            }
             
             const rightHand = document.getElementById('right-hand');
             const leftHand = document.getElementById('left-hand');
@@ -91,25 +103,19 @@
                 this.el.classList.add('collidable');
             }
         });
-
-        // パネルUIの各ボタンにクラスを適用
-        const buttons = document.querySelectorAll('#main-menu a-plane');
-        buttons.forEach(button => {
-            button.setAttribute('add-collidable-class', '');
-        });
       });
     </script>
   </head>
   <body>
-    <div id="hand-selection-ui" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; background: rgba(0, 0, 0, 0.7); padding: 20px; border-radius: 10px; text-align: center; color: white; font-family: sans-serif;">
+    <div id="hand-selection-ui" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; background: rgba(0, 0, 0, 0.7); padding: 5vw; border-radius: 10px; text-align: center; color: white; font-family: sans-serif; box-sizing: border-box; max-width: 90vw;">
       <h1>VR家具配置シミュレーション</h1>
       <p>利き手はどちらですか？</p>
-      <button id="right-hand-btn" style="padding: 10px 20px; margin: 10px; font-size: 16px;">右利き</button>
-      <button id="left-hand-btn" style="padding: 10px 20px; margin: 10px; font-size: 16px;">左利き</button>
+      <button id="right-hand-btn" style="padding: 1vw 2vw; margin: 1vw; font-size: 3vw;">右利き</button>
+      <button id="left-hand-btn" style="padding: 1vw 2vw; margin: 1vw; font-size: 3vw;">左利き</button>
     </div>
 
     <a-scene 
-      webxr="requiredFeatures: passthrough" 
+      webxr="requiredFeatures: passthrough, immersive-vr" 
       renderer="colorManagement: true;"
       vr-mode-ui="enterVRButton: #right-hand-btn, #left-hand-btn;"
       style="display: none;"

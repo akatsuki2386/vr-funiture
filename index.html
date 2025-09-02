@@ -3,6 +3,21 @@
   <head>
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script>
+      // 白い手モデルを非表示にするコンポーネント
+      AFRAME.registerComponent('hide-controller-model', {
+        init: function() {
+          const controllerEl = this.el;
+          
+          controllerEl.addEventListener('model-loaded', () => {
+            // ロードされたメッシュオブジェクトを取得し、非表示にする
+            const mesh = controllerEl.getObject3D('mesh');
+            if (mesh) {
+              mesh.visible = false;
+            }
+          });
+        }
+      });
+
       // 左手コントローラーUIのコンポーネント
       AFRAME.registerComponent('left-hand-ui', {
         init: function() {
@@ -140,16 +155,16 @@
       <a-entity 
         id="left-hand" 
         hand-controls="hand: left"
-        left-hand-ui>
-        <a-entity gltf-model="" visible="false"></a-entity>
+        left-hand-ui
+        hide-controller-model>
       </a-entity>
       
       <a-entity 
         id="right-hand" 
         hand-controls="hand: right"
         raycaster="objects: .collidable, #plus-button; showLine: true;" 
-        right-hand-interactions>
-        <a-entity gltf-model="" visible="false"></a-entity>
+        right-hand-interactions
+        hide-controller-model>
       </a-entity>
 
       <a-box 

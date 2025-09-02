@@ -1,15 +1,40 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://unpkg.com/aframe-extras/dist/aframe-extras.min.js"></script>
 </head>
 <body>
-  <a-scene>
-    <a-box position="-1 0.5 -3" rotation="0 45 0" color="#4CCAFB"></a-box>
-    <a-sphere position="0 1.25 -5" radius="1.25" color="#EF2D5E"></a-sphere>
-    <a-cylinder position="1 0.75 -3" radius="0.5" height="1.5" color="#FFC65D"></a-cylinder>
-    <a-plane position="0 0 -4" rotation="-90 0 0" width="4" height="4" color="#7BC8A4"></a-plane>
-    <a-sky color="#ECECEC"></a-sky>
-  </a-scene>
+    <a-scene xr-mode-ui="enabled: false"
+            renderer="colorManagement: true; physicallyCorrectLights: true;"
+            webxr="optionalFeatures: hit-test, dom-overlay; requiredFeatures: local-floor, anchor;">
+
+        <a-entity
+            material="shader: vr-passthrough;
+                      passthrough: true;">
+        </a-entity>
+
+        <a-entity
+            xrextras-ar-passthrough
+            xrextras-hit-test
+            xrextras-surface-placement="placement-mode: anchor">
+
+            <a-box id="my-box"
+                   scale="0.2 0.2 0.2"
+                   position="0 0.1 0"
+                   material="color: #FF00FF; metalness: 0.8; roughness: 0.2; sphericalEnvMap: #texture-loader;">
+                <a-animation
+                    attribute="material.emissive"
+                    from="0 0 0"
+                    to="0.5 0.5 0.5"
+                    dur="2000"
+                    direction="alternate"
+                    repeat="indefinite">
+                </a-animation>
+            </a-box>
+        </a-entity>
+
+        <a-entity cursor="rayOrigin: mouse" raycaster="objects: .collidable;"></a-entity>
+    </a-scene>
 </body>
 </html>

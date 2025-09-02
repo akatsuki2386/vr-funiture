@@ -8,7 +8,6 @@
     <script src="https://cdn.jsdelivr.net/npm/aframe-event-set-component@4.2.1/dist/aframe-event-set-component.min.js"></script>
     
     <script>
-      // 家具のデータ
       const furnitureData = [
           { id: 'sofa', name: 'ソファ', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/sofa.obj' },
           { id: 'table', name: 'テーブル', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/table.obj' },
@@ -29,11 +28,9 @@
           const rightHand = document.getElementById('right-hand');
           const leftHand = document.getElementById('left-hand');
           
-          // レイキャストの追加
           rightHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
           leftHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
           
-          // UIパネルをコントローラーの子要素としてアタッチ
           if (handedness === 'right') {
               leftHand.appendChild(uiPanelHolder);
           } else {
@@ -44,7 +41,6 @@
           uiPanelHolder.setAttribute('rotation', '-15 0 0');
           uiPanelHolder.setAttribute('visible', 'true');
 
-          // ボタンのイベントリスナー設定
           const mainMenu = document.getElementById('main-menu');
           const furnitureMenu = document.getElementById('furniture-menu');
           
@@ -68,7 +64,6 @@
           });
         });
 
-        // 利き手選択のイベントリスナー
         rightHandBtn.addEventListener('click', () => {
           localStorage.setItem('handedness', 'right');
           vrScene.enterVR();
@@ -90,7 +85,7 @@
     </div>
 
     <a-scene 
-      webxr="requiredFeatures: local-floor" 
+      webxr="requiredFeatures: local-floor, passthrough" 
       renderer="colorManagement: true;"
       vr-mode-ui="enterVRButton: #right-hand-btn, #left-hand-btn;"
     >

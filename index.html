@@ -139,15 +139,13 @@
 
       <a-entity 
         id="left-hand" 
-        hand-controls="hand: left"
-        gltf-model="url(https://cdn.aframe.io/examples/mixed-reality/oculus-touch.gltf)"
+        hand-controls="hand: left; model: false"
         left-hand-ui>
       </a-entity>
       
       <a-entity 
         id="right-hand" 
-        hand-controls="hand: right"
-        gltf-model="url(https://cdn.aframe.io/examples/mixed-reality/oculus-touch.gltf)"
+        hand-controls="hand: right; model: false"
         raycaster="objects: .collidable, #plus-button; showLine: true;" 
         right-hand-interactions>
       </a-entity>

@@ -3,21 +3,6 @@
   <head>
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script>
-      // 3Dモデルを透明にするコンポーネント
-      AFRAME.registerComponent('set-model-transparent', {
-        init: function() {
-          const controllerEl = this.el;
-          
-          controllerEl.addEventListener('model-loaded', () => {
-            const mesh = controllerEl.getObject3D('mesh');
-            if (mesh && mesh.material) {
-              mesh.material.transparent = true;
-              mesh.material.opacity = 0;
-            }
-          });
-        }
-      });
-
       // 左手コントローラーUIのコンポーネント
       AFRAME.registerComponent('left-hand-ui', {
         init: function() {
@@ -58,7 +43,9 @@
               height: 0.2
             });
             plusButton.setAttribute('material', {
-              color: '#4CAF50'
+              color: '#4CAF50',
+              transparent: true,
+              opacity: 0.5
             });
             plusButton.setAttribute('text', {
               value: '+',
@@ -154,15 +141,13 @@
 
       <a-entity 
         id="left-hand" 
-        hand-controls="hand: left"
-        gltf-model="null"
+        tracked-controls="hand: left"
         left-hand-ui>
       </a-entity>
       
       <a-entity 
         id="right-hand" 
-        hand-controls="hand: right"
-        gltf-model="null"
+        tracked-controls="hand: right"
         raycaster="objects: .collidable, #plus-button; showLine: true;" 
         right-hand-interactions>
       </a-entity>
@@ -195,6 +180,3 @@
     </script>
   </body>
 </html>
-
-
-

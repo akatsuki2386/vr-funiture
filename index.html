@@ -15,6 +15,25 @@
           { id: 'chair', name: '椅子', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/chair.obj' },
       ];
 
+      // UIパネルをコントローラーに追従させるためのカスタムコンポーネント
+      AFRAME.registerComponent('ui-controller-follower', {
+        schema: {
+          hand: {type: 'string', default: 'left'}
+        },
+        init: function () {
+          const controllerId = this.data.hand === 'left' ? 'left-hand' : 'right-hand';
+          const controllerEl = document.getElementById(controllerId);
+          
+          if (controllerEl) {
+            controllerEl.appendChild(this.el);
+            this.el.setAttribute('position', '0 0.2 -0.5');
+            this.el.setAttribute('rotation', '-15 0 0');
+          } else {
+            console.error('Controller element not found.');
+          }
+        }
+      });
+
       document.addEventListener('DOMContentLoaded', () => {
         const vrScene = document.querySelector('a-scene');
 
@@ -26,7 +45,7 @@
         vrScene.addEventListener('enter-vr', () => {
           handSelectionUI.style.display = 'none';
 
-          const handedness = localStorage.getItem('handedness'); // 保存された利き手を取得
+          const handedness = localStorage.getItem('handedness');
           const rightHand = document.getElementById('right-hand');
           const leftHand = document.getElementById('left-hand');
           
@@ -37,13 +56,9 @@
           const uiPanel = document.getElementById('ui-panel-holder');
           
           if (handedness === 'right') {
-              uiPanel.setAttribute('parent', 'left-hand');
-              uiPanel.setAttribute('position', '0 0.2 -0.5');
-              uiPanel.setAttribute('rotation', '-15 0 0');
+              uiPanel.setAttribute('ui-controller-follower', 'hand: left');
           } else {
-              uiPanel.setAttribute('parent', 'right-hand');
-              uiPanel.setAttribute('position', '0 0.2 -0.5');
-              uiPanel.setAttribute('rotation', '-15 0 0');
+              uiPanel.setAttribute('ui-controller-follower', 'hand: right');
           }
           uiPanel.setAttribute('visible', 'true');
 

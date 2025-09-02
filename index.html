@@ -12,38 +12,49 @@
         const startVrBtn = document.getElementById('start-vr-btn');
         const vrScene = document.querySelector('a-scene');
 
-        startVrBtn.addEventListener('click', () => {
-          // VRモードへの移行を試みる
-          if (vrScene.hasLoaded) {
-            vrScene.enterVR();
-          } else {
-            vrScene.addEventListener('loaded', () => {
-              vrScene.enterVR();
+        // WebXRのセッションを開始する関数
+        async function startXRSession() {
+          try {
+            const session = await navigator.xr.requestSession('immersive-vr', {
+              requiredFeatures: ['local-floor', 'passthrough']
             });
+            
+            // A-Frameにセッションをアタッチ
+            vrScene.setAttribute('vr-mode-ui', 'enabled: false');
+            vrScene.xrSession = session;
+            vrScene.enterVR();
+
+          } catch (error) {
+            console.error('Failed to start VR session:', error);
+            alert('VRセッションの開始に失敗しました。対応するVRヘッドセットが接続されているか確認してください。');
           }
+        }
+
+        startVrBtn.addEventListener('click', () => {
+          startXRSession();
         });
 
+        // A-Frameのenter-vrイベントリスナー
         vrScene.addEventListener('enter-vr', () => {
-            // VRモードに移行した際にUIを非表示にする
-            document.getElementById('start-ui').style.display = 'none';
-            
-            // 利き手（ここでは仮に右利きと設定）に応じてUIを生成
-            const handedness = 'right'; // テストのため、一旦固定
-            
-            const rightHand = document.getElementById('right-hand');
-            const leftHand = document.getElementById('left-hand');
-            
-            // レイキャストの追加
-            rightHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
-            leftHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
-            
-            const uiPanel = createUIPanel();
-            
-            if (handedness === 'right') {
-                leftHand.appendChild(uiPanel);
-            } else {
-                rightHand.appendChild(uiPanel);
-            }
+          document.getElementById('start-ui').style.display = 'none';
+
+          // 利き手（ここでは仮に右利きと設定）に応じてUIを生成
+          const handedness = 'right';
+          
+          const rightHand = document.getElementById('right-hand');
+          const leftHand = document.getElementById('left-hand');
+          
+          // レイキャストの追加
+          rightHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
+          leftHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
+          
+          const uiPanel = createUIPanel();
+          
+          if (handedness === 'right') {
+              leftHand.appendChild(uiPanel);
+          } else {
+              rightHand.appendChild(uiPanel);
+          }
         });
         
         // UIパネルを生成する関数
@@ -101,6 +112,7 @@
     <a-scene 
       webxr="requiredFeatures: passthrough, immersive-vr" 
       renderer="colorManagement: true;"
+      vr-mode-ui="enabled: false;"
     >
       <a-assets>
         </a-assets>

@@ -24,27 +24,78 @@
                 transparent: true,
                 opacity: 0.8
               });
-              uiPanel.setAttribute('text', {
-                value: 'Hello WebXR!',
+              
+              // パネルのヘッダーテキスト
+              const headerText = document.createElement('a-entity');
+              headerText.setAttribute('text', {
+                value: 'Controls',
                 color: '#000',
                 align: 'center',
                 width: 1.2
               });
+              headerText.setAttribute('position', '0 0.1 0.01');
+              uiPanel.appendChild(headerText);
+
+              // + ボタンを作成
+              const plusButton = document.createElement('a-entity');
+              plusButton.setAttribute('id', 'plus-button');
+              plusButton.setAttribute('geometry', {
+                primitive: 'plane',
+                width: 0.2,
+                height: 0.2
+              });
+              plusButton.setAttribute('material', {
+                color: '#4CAF50'
+              });
+              plusButton.setAttribute('text', {
+                value: '+',
+                color: '#fff',
+                align: 'center',
+                width: 0.5
+              });
+              plusButton.setAttribute('position', '0 -0.05 0.01'); // パネル内に配置
+              uiPanel.appendChild(plusButton);
               
-              // コントローラーの正面に配置
+              // コントローラーの正面にパネルを配置
               uiPanel.setAttribute('position', '0 0.1 -0.5'); 
               controllerEl.appendChild(uiPanel);
+
+              // + ボタンのクリックイベントリスナー
+              plusButton.addEventListener('click', () => {
+                console.log('+ button clicked!');
+                // 新しいボックスを生成
+                const newBox = document.createElement('a-box');
+                newBox.setAttribute('position', '0 1 -2'); // ユーザーの少し前に配置
+                newBox.setAttribute('rotation', '0 45 0');
+                newBox.setAttribute('color', '#FFC300');
+                newBox.setAttribute('shadow', '');
+                newBox.setAttribute('class', 'collidable'); // レイキャストの対象にする
+                document.querySelector('a-scene').appendChild(newBox);
+              });
+
             }
           });
+        }
+      });
+
+      // 右手コントローラーのレイキャストとインタラクション処理
+      AFRAME.registerComponent('right-hand-interactions', {
+        init: function() {
+          const controllerEl = this.el;
 
           // トリガーが押されたときの処理
           controllerEl.addEventListener('triggerdown', () => {
-            console.log('Trigger pressed!');
+            console.log('Right hand trigger pressed!');
             const raycaster = controllerEl.components.raycaster;
             if (raycaster && raycaster.intersections.length > 0) {
               const intersectedEl = raycaster.intersections[0].object.el;
-              // レイキャストが当たった最初のオブジェクトをハイライト
-              intersectedEl.setAttribute('material', 'color', '#FF0000');
+              // 交差した要素が + ボタンかチェック
+              if (intersectedEl.id === 'plus-button') {
+                intersectedEl.emit('click');
+              } else {
+                // レイキャストが当たった最初のオブジェクトをハイライト
+                intersectedEl.setAttribute('material', 'color', '#FF0000');
+              }
             }
           });
           
@@ -55,7 +106,9 @@
             if (raycaster && raycaster.intersections.length > 0) {
               const intersectedEl = raycaster.intersections[0].object.el;
               // ハイライトを元に戻す
-              intersectedEl.setAttribute('material', 'color', '#4CC3D9');
+              if (intersectedEl.id !== 'plus-button') {
+                intersectedEl.setAttribute('material', 'color', '#4CC3D9');
+              }
             }
           });
         }
@@ -103,8 +156,8 @@
       <a-entity 
         id="right-hand" 
         hand-controls="hand: right" 
-        raycaster="objects: .collidable; showLine: true;" 
-        controller-ui>
+        raycaster="objects: .collidable, #plus-button;" 
+        right-hand-interactions>
       </a-entity>
 
       <a-box 

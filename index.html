@@ -6,168 +6,126 @@
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://unpkg.com/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
     
-    <style>
-      #vr-ui-container {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: 10;
-      }
-      .panel-container {
-        display: none;
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 300px;
-        height: 400px;
-        background: rgba(51, 51, 51, 0.7);
-        border-radius: 10px;
-        padding: 20px;
-        box-sizing: border-box;
-        flex-direction: column;
-        justify-content: space-around;
-        align-items: center;
-      }
-      .panel-container.right-handed {
-        left: auto;
-        right: 5%;
-      }
-      .panel-container.left-handed {
-        left: 5%;
-        right: auto;
-      }
-      .panel-container button {
-        width: 80%;
-        padding: 10px;
-        margin: 10px 0;
-        font-size: 16px;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-      }
-      #hand-selection-ui {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        z-index: 1000;
-        background: rgba(0, 0, 0, 0.7);
-        padding: 5vw;
-        border-radius: 10px;
-        text-align: center;
-        color: white;
-        font-family: sans-serif;
-        box-sizing: border-box;
-        max-width: 90vw;
-      }
-      #main-menu, #furniture-menu {
-        display: none;
-      }
-    </style>
-    
     <script>
+      // 家具のデータ
+      const furnitureData = [
+          { id: 'sofa', name: 'ソファ', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/sofa.obj' },
+          { id: 'table', name: 'テーブル', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/table.obj' },
+          { id: 'chair', name: '椅子', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/chair.obj' },
+      ];
+
+      // パネルUIとインタラクションを管理するカスタムコンポーネント
+      AFRAME.registerComponent('app-ui-manager', {
+        init: function() {
+          const el = this.el;
+          this.handedness = localStorage.getItem('handedness') || 'right'; // 利き手設定
+          
+          this.mainMenu = el.querySelector('#main-menu');
+          this.furnitureMenu = el.querySelector('#furniture-menu');
+          this.backButton = el.querySelector('#back-button');
+
+          this.setupEvents();
+          this.updateUI();
+        },
+        updateUI: function() {
+          this.mainMenu.setAttribute('visible', 'true');
+          this.furnitureMenu.setAttribute('visible', 'false');
+        },
+        setupEvents: function() {
+          const addButton = this.el.querySelector('#add-button');
+          if (addButton) {
+            addButton.addEventListener('click', () => {
+              this.mainMenu.setAttribute('visible', 'false');
+              this.furnitureMenu.setAttribute('visible', 'true');
+            });
+          }
+          if (this.backButton) {
+            this.backButton.addEventListener('click', () => {
+              this.furnitureMenu.setAttribute('visible', 'false');
+              this.mainMenu.setAttribute('visible', 'true');
+            });
+          }
+        }
+      });
+      
       document.addEventListener('DOMContentLoaded', () => {
         const vrScene = document.querySelector('a-scene');
         const handSelectionUI = document.getElementById('hand-selection-ui');
-        const vrUiContainer = document.getElementById('vr-ui-container');
-        const mainMenu = document.getElementById('main-menu');
-        const furnitureMenu = document.getElementById('furniture-menu');
-        const rightHandPanel = document.getElementById('right-handed-panel');
-        const leftHandPanel = document.getElementById('left-handed-panel');
-        
-        document.getElementById('right-hand-btn').addEventListener('click', () => {
+        const rightHandBtn = document.getElementById('right-hand-btn');
+        const leftHandBtn = document.getElementById('left-hand-btn');
+        const uiPanelHolder = document.getElementById('ui-panel-holder');
+
+        rightHandBtn.addEventListener('click', () => {
           localStorage.setItem('handedness', 'right');
+          vrScene.enterVR();
         });
         
-        document.getElementById('left-hand-btn').addEventListener('click', () => {
+        leftHandBtn.addEventListener('click', () => {
           localStorage.setItem('handedness', 'left');
+          vrScene.enterVR();
         });
 
         vrScene.addEventListener('enter-vr', () => {
           handSelectionUI.style.display = 'none';
+
           const handedness = localStorage.getItem('handedness');
+          const rightHand = document.getElementById('right-hand');
+          const leftHand = document.getElementById('left-hand');
+          const raycaster = 'objects: .collidable; showLine: true; far: 5;';
+          
+          rightHand.setAttribute('raycaster', raycaster);
+          leftHand.setAttribute('raycaster', raycaster);
           
           if (handedness === 'right') {
-            rightHandPanel.style.display = 'flex';
-            leftHandPanel.style.display = 'none';
+            leftHand.appendChild(uiPanelHolder);
           } else {
-            leftHandPanel.style.display = 'flex';
-            rightHandPanel.style.display = 'none';
+            rightHand.appendChild(uiPanelHolder);
           }
           
-          mainMenu.style.display = 'flex';
-        });
-
-        document.getElementById('add-button').addEventListener('click', () => {
-          mainMenu.style.display = 'none';
-          furnitureMenu.style.display = 'flex';
-        });
-        
-        document.getElementById('back-button').addEventListener('click', () => {
-          furnitureMenu.style.display = 'none';
-          mainMenu.style.display = 'flex';
-        });
-
-        // 利き手に応じてボタンのイベントリスナーを設定
-        const buttons = document.querySelectorAll('#main-menu button, #furniture-menu button');
-        buttons.forEach(button => {
-          button.addEventListener('click', () => {
-            console.log(`ボタンがクリックされました: ${button.textContent}`);
-            // ここにクリック後のロジックを追加
-          });
+          uiPanelHolder.setAttribute('position', '0 0.2 -0.5');
+          uiPanelHolder.setAttribute('rotation', '-15 0 0');
+          uiPanelHolder.setAttribute('visible', 'true');
+          uiPanelHolder.setAttribute('app-ui-manager', ''); // カスタムコンポーネントをアタッチ
         });
       });
     </script>
   </head>
   <body>
-    <div id="hand-selection-ui">
+    <div id="hand-selection-ui" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; background: rgba(0, 0, 0, 0.7); padding: 5vw; border-radius: 10px; text-align: center; color: white; font-family: sans-serif; box-sizing: border-box; max-width: 90vw;">
       <h1>VR家具配置シミュレーション</h1>
       <p>利き手はどちらですか？</p>
-      <button id="right-hand-btn">右利き</button>
-      <button id="left-hand-btn">左利き</button>
+      <button id="right-hand-btn" style="padding: 1vw 2vw; margin: 1vw; font-size: 3vw;">右利き</button>
+      <button id="left-hand-btn" style="padding: 1vw 2vw; margin: 1vw; font-size: 3vw;">左利き</button>
     </div>
 
-    <div id="vr-ui-container">
-      <div id="right-handed-panel" class="panel-container right-handed">
-        <div id="main-menu">
-          <button id="add-button" style="background-color: #5cb85c;">モデルの追加</button>
-          <button id="help-button" style="background-color: #f0ad4e;">動作の説明</button>
-          <button id="exit-button" style="background-color: #d9534f;">シミュレーションの終了</button>
-        </div>
-        <div id="furniture-menu">
-          <button id="furniture-button-sofa" style="background-color: #5bc0de;">ソファ</button>
-          <button id="furniture-button-table" style="background-color: #5bc0de;">テーブル</button>
-          <button id="furniture-button-chair" style="background-color: #5bc0de;">椅子</button>
-          <button id="back-button" style="background-color: #f0ad4e;">戻る</button>
-        </div>
-      </div>
-      <div id="left-handed-panel" class="panel-container left-handed">
-        <div id="main-menu">
-          <button id="add-button" style="background-color: #5cb85c;">モデルの追加</button>
-          <button id="help-button" style="background-color: #f0ad4e;">動作の説明</button>
-          <button id="exit-button" style="background-color: #d9534f;">シミュレーションの終了</button>
-        </div>
-        <div id="furniture-menu">
-          <button id="furniture-button-sofa" style="background-color: #5bc0de;">ソファ</button>
-          <button id="furniture-button-table" style="background-color: #5bc0de;">テーブル</button>
-          <button id="furniture-button-chair" style="background-color: #5bc0de;">椅子</button>
-          <button id="back-button" style="background-color: #f0ad4e;">戻る</button>
-        </div>
-      </div>
-    </div>
-    
     <a-scene 
-      webxr="requiredFeatures: local-floor, dom-overlay" 
+      webxr="requiredFeatures: local-floor" 
       renderer="colorManagement: true;"
       vr-mode-ui="enterVRButton: #right-hand-btn, #left-hand-btn;"
-      dom-overlay="root: #vr-ui-container"
     >
-      <a-assets></a-assets>
+      <a-assets>
+      </a-assets>
+
       <a-entity id="left-hand" hand-controls="hand: left; model: true;"></a-entity>
       <a-entity id="right-hand" hand-controls="hand: right; model: true;"></a-entity>
+
+      <a-entity id="ui-panel-holder" visible="false">
+          <a-plane id="main-menu" width="0.5" height="0.8" color="#333" opacity="0.7">
+              <a-plane id="add-button" width="0.4" height="0.1" color="#5cb85c" position="0 0.3 0.01" text="value: モデルの追加; align: center; color: white;" class="collidable"></a-plane>
+              <a-plane id="help-button" width="0.4" height="0.1" color="#f0ad4e" position="0 0 0.01" text="value: 動作の説明; align: center; color: white;" class="collidable"></a-plane>
+              <a-plane id="exit-button" width="0.4" height="0.1" color="#d9534f" position="0 -0.3 0.01" text="value: シミュレーションの終了; align: center; color: white;" class="collidable"></a-plane>
+          </a-plane>
+          
+          <a-plane id="furniture-menu" width="0.5" height="0.8" color="#555" opacity="0.7" visible="false">
+              <a-plane id="furniture-button-sofa" width="0.4" height="0.1" color="#5bc0de" position="0 0.3 0.01" text="value: ソファ; align: center; color: white;" class="collidable"></a-plane>
+              <a-plane id="furniture-button-table" width="0.4" height="0.1" color="#5bc0de" position="0 0.15 0.01" text="value: テーブル; align: center; color: white;" class="collidable"></a-plane>
+              <a-plane id="furniture-button-chair" width="0.4" height="0.1" color="#5bc0de" position="0 0 0.01" text="value: 椅子; align: center; color: white;" class="collidable"></a-plane>
+              <a-plane id="back-button" width="0.4" height="0.1" color="#f0ad4e" position="0 -0.3 0.01" text="value: 戻る; align: center; color: white;" class="collidable"></a-plane>
+          </a-plane>
+      </a-entity>
+      
       <a-entity camera look-controls wasd-controls></a-entity>
+      
       <a-sky color="#ECECEC"></a-sky>
     </a-scene>
   </body>

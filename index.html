@@ -154,14 +154,14 @@
 
       <a-entity 
         id="left-hand" 
-        hand-controls="hand: left"
+        hand-controls="hand: left; model: false"
         left-hand-ui
         set-model-transparent>
       </a-entity>
       
       <a-entity 
         id="right-hand" 
-        hand-controls="hand: right"
+        hand-controls="hand: right; model: false"
         raycaster="objects: .collidable, #plus-button; showLine: true;" 
         right-hand-interactions
         set-model-transparent>
@@ -195,3 +195,4 @@
     </script>
   </body>
 </html>
+

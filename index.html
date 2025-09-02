@@ -1,118 +1,15 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8" />
-    <title>VR Furniture Planner</title>
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://unpkg.com/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/aframe-event-set-component@4.2.1/dist/aframe-event-set-component.min.js"></script>
-    
-    <script>
-      const furnitureData = [
-          { id: 'sofa', name: 'ソファ', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/sofa.obj' },
-          { id: 'table', name: 'テーブル', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/table.obj' },
-          { id: 'chair', name: '椅子', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/chair.obj' },
-      ];
-
-      document.addEventListener('DOMContentLoaded', () => {
-        const vrScene = document.querySelector('a-scene');
-        const handSelectionUI = document.getElementById('hand-selection-ui');
-        const rightHandBtn = document.getElementById('right-hand-btn');
-        const leftHandBtn = document.getElementById('left-hand-btn');
-        const uiPanelHolder = document.getElementById('ui-panel-holder');
-
-        vrScene.addEventListener('enter-vr', () => {
-          handSelectionUI.style.display = 'none';
-
-          const handedness = localStorage.getItem('handedness');
-          const rightHand = document.getElementById('right-hand');
-          const leftHand = document.getElementById('left-hand');
-          
-          rightHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
-          leftHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
-          
-          if (handedness === 'right') {
-              leftHand.appendChild(uiPanelHolder);
-          } else {
-              rightHand.appendChild(uiPanelHolder);
-          }
-          
-          uiPanelHolder.setAttribute('position', '0 0.2 -0.5');
-          uiPanelHolder.setAttribute('rotation', '-15 0 0');
-          uiPanelHolder.setAttribute('visible', 'true');
-
-          const mainMenu = document.getElementById('main-menu');
-          const furnitureMenu = document.getElementById('furniture-menu');
-          
-          document.getElementById('add-button').addEventListener('click', () => {
-              mainMenu.setAttribute('visible', 'false');
-              furnitureMenu.setAttribute('visible', 'true');
-          });
-          
-          document.getElementById('back-button').addEventListener('click', () => {
-              furnitureMenu.setAttribute('visible', 'false');
-              mainMenu.setAttribute('visible', 'true');
-          });
-
-          furnitureData.forEach(furniture => {
-              const button = document.getElementById(`furniture-button-${furniture.id}`);
-              if (button) {
-                  button.addEventListener('click', () => {
-                      console.log(`${furniture.name}が選択されました！`);
-                  });
-              }
-          });
-        });
-
-        rightHandBtn.addEventListener('click', () => {
-          localStorage.setItem('handedness', 'right');
-          vrScene.enterVR();
-        });
-        
-        leftHandBtn.addEventListener('click', () => {
-          localStorage.setItem('handedness', 'left');
-          vrScene.enterVR();
-        });
-      });
-    </script>
-  </head>
-  <body>
-    <div id="hand-selection-ui" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; background: rgba(0, 0, 0, 0.7); padding: 5vw; border-radius: 10px; text-align: center; color: white; font-family: sans-serif; box-sizing: border-box; max-width: 90vw;">
-      <h1>VR家具配置シミュレーション</h1>
-      <p>利き手はどちらですか？</p>
-      <button id="right-hand-btn" style="padding: 1vw 2vw; margin: 1vw; font-size: 3vw;">右利き</button>
-      <button id="left-hand-btn" style="padding: 1vw 2vw; margin: 1vw; font-size: 3vw;">左利き</button>
-    </div>
-
-    <a-scene 
-      webxr="requiredFeatures: local-floor, passthrough" 
-      renderer="colorManagement: true;"
-      vr-mode-ui="enterVRButton: #right-hand-btn, #left-hand-btn;"
-    >
-      <a-assets>
-      </a-assets>
-
-      <a-entity id="left-hand" hand-controls="hand: left; model: true;"></a-entity>
-      <a-entity id="right-hand" hand-controls="hand: right; model: true;"></a-entity>
-
-      <a-entity id="ui-panel-holder" visible="false">
-          <a-plane id="main-menu" width="0.5" height="0.8" color="#333" opacity="0.7">
-              <a-plane id="add-button" width="0.4" height="0.1" color="#5cb85c" position="0 0.3 0.01" text="value: モデルの追加; align: center; color: white;" class="collidable"></a-plane>
-              <a-plane id="help-button" width="0.4" height="0.1" color="#f0ad4e" position="0 0 0.01" text="value: 動作の説明; align: center; color: white;" class="collidable"></a-plane>
-              <a-plane id="exit-button" width="0.4" height="0.1" color="#d9534f" position="0 -0.3 0.01" text="value: シミュレーションの終了; align: center; color: white;" class="collidable"></a-plane>
-          </a-plane>
-          
-          <a-plane id="furniture-menu" width="0.5" height="0.8" color="#555" opacity="0.7" visible="false">
-              <a-plane id="furniture-button-sofa" width="0.4" height="0.1" color="#5bc0de" position="0 0.3 0.01" text="value: ソファ; align: center; color: white;" class="collidable"></a-plane>
-              <a-plane id="furniture-button-table" width="0.4" height="0.1" color="#5bc0de" position="0 0.15 0.01" text="value: テーブル; align: center; color: white;" class="collidable"></a-plane>
-              <a-plane id="furniture-button-chair" width="0.4" height="0.1" color="#5bc0de" position="0 0 0.01" text="value: 椅子; align: center; color: white;" class="collidable"></a-plane>
-              <a-plane id="back-button" width="0.4" height="0.1" color="#f0ad4e" position="0 -0.3 0.01" text="value: 戻る; align: center; color: white;" class="collidable"></a-plane>
-          </a-plane>
-      </a-entity>
-      
-      <a-entity camera look-controls wasd-controls></a-entity>
-      
-      <a-sky color="#ECECEC"></a-sky>
-    </a-scene>
-  </body>
+<head>
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+</head>
+<body>
+  <a-scene>
+    <a-box position="-1 0.5 -3" rotation="0 45 0" color="#4CCAFB"></a-box>
+    <a-sphere position="0 1.25 -5" radius="1.25" color="#EF2D5E"></a-sphere>
+    <a-cylinder position="1 0.75 -3" radius="0.5" height="1.5" color="#FFC65D"></a-cylinder>
+    <a-plane position="0 0 -4" rotation="-90 0 0" width="4" height="4" color="#7BC8A4"></a-plane>
+    <a-sky color="#ECECEC"></a-sky>
+  </a-scene>
+</body>
 </html>

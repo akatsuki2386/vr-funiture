@@ -15,9 +15,31 @@
           { id: 'chair', name: '椅子', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/chair.obj' },
       ];
 
+      // パネルUIとレイキャストをセットアップする関数
+      function setupVrControls(handedness) {
+        const rightHand = document.getElementById('right-hand');
+        const leftHand = document.getElementById('left-hand');
+        const uiPanel = document.getElementById('ui-panel-holder');
+        const raycaster = 'objects: .collidable; showLine: true; far: 5;';
+        
+        // レイキャストの追加
+        rightHand.setAttribute('raycaster', raycaster);
+        leftHand.setAttribute('raycaster', raycaster);
+
+        // 利き手に応じてUIパネルをコントローラーに追従させる
+        if (handedness === 'right') {
+            leftHand.appendChild(uiPanel);
+        } else {
+            rightHand.appendChild(uiPanel);
+        }
+
+        uiPanel.setAttribute('position', '0 0.2 -0.5');
+        uiPanel.setAttribute('rotation', '-15 0 0');
+        uiPanel.setAttribute('visible', 'true');
+      }
+
       document.addEventListener('DOMContentLoaded', () => {
         const vrScene = document.querySelector('a-scene');
-
         const handSelectionUI = document.getElementById('hand-selection-ui');
         const rightHandBtn = document.getElementById('right-hand-btn');
         const leftHandBtn = document.getElementById('left-hand-btn');
@@ -25,27 +47,17 @@
         // VRモードに移行した後の処理
         vrScene.addEventListener('enter-vr', () => {
           handSelectionUI.style.display = 'none';
-
           const handedness = localStorage.getItem('handedness');
-          const rightHand = document.getElementById('right-hand');
-          const leftHand = document.getElementById('left-hand');
           
-          // レイキャストの追加
-          rightHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
-          leftHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
-          
-          const uiPanel = document.getElementById('ui-panel-holder');
-          
-          if (handedness === 'right') {
-              leftHand.appendChild(uiPanel);
-          } else {
-              rightHand.appendChild(uiPanel);
-          }
-          
-          uiPanel.setAttribute('position', '0 0.2 -0.5');
-          uiPanel.setAttribute('rotation', '-15 0 0');
-          uiPanel.setAttribute('visible', 'true');
+          // コントローラーが完全にロードされた後にUIパネルをアタッチ
+          // A-Frameの`controller-ready`イベントを使用
+          const targetHand = handedness === 'right' ? 'left' : 'right';
+          const targetHandEl = document.getElementById(targetHand === 'left' ? 'left-hand' : 'right-hand');
 
+          targetHandEl.addEventListener('model-loaded', () => {
+              setupVrControls(handedness);
+          });
+          
           // ボタンのイベントリスナー設定
           const mainMenu = document.getElementById('main-menu');
           const furnitureMenu = document.getElementById('furniture-menu');
@@ -96,8 +108,8 @@
       <a-assets>
       </a-assets>
 
-      <a-entity id="left-hand" hand-controls="hand: left;"></a-entity>
-      <a-entity id="right-hand" hand-controls="hand: right;"></a-entity>
+      <a-entity id="left-hand" hand-controls="hand: left; model: true;"></a-entity>
+      <a-entity id="right-hand" hand-controls="hand: right; model: true;"></a-entity>
 
       <a-entity id="ui-panel-holder" visible="false">
           <a-plane id="main-menu" width="0.5" height="0.8" color="#333" opacity="0.7">

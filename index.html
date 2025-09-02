@@ -15,33 +15,9 @@
           { id: 'chair', name: '椅子', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/chair.obj' },
       ];
 
-      // UIパネルをコントローラーに追従させるためのカスタムコンポーネント
-      AFRAME.registerComponent('ui-controller-follower', {
-        schema: {
-          hand: {type: 'string', default: 'left'}
-        },
-        init: function () {
-          const controllerId = this.data.hand === 'left' ? 'left-hand' : 'right-hand';
-          const controllerEl = document.getElementById(controllerId);
-
-          if (!controllerEl.hasLoaded) {
-            // コントローラーがまだロードされていない場合は、ロード完了を待機
-            controllerEl.addEventListener('loaded', () => {
-              this.el.setAttribute('parent', controllerId);
-              this.el.setAttribute('position', '0 0.2 -0.5');
-              this.el.setAttribute('rotation', '-15 0 0');
-            });
-          } else {
-            // すでにロード済みなら直接アタッチ
-            this.el.setAttribute('parent', controllerId);
-            this.el.setAttribute('position', '0 0.2 -0.5');
-            this.el.setAttribute('rotation', '-15 0 0');
-          }
-        }
-      });
-
       document.addEventListener('DOMContentLoaded', () => {
         const vrScene = document.querySelector('a-scene');
+
         const handSelectionUI = document.getElementById('hand-selection-ui');
         const rightHandBtn = document.getElementById('right-hand-btn');
         const leftHandBtn = document.getElementById('left-hand-btn');
@@ -61,10 +37,13 @@
           const uiPanel = document.getElementById('ui-panel-holder');
           
           if (handedness === 'right') {
-              uiPanel.setAttribute('ui-controller-follower', 'hand: left');
+              leftHand.appendChild(uiPanel);
           } else {
-              uiPanel.setAttribute('ui-controller-follower', 'hand: right');
+              rightHand.appendChild(uiPanel);
           }
+          
+          uiPanel.setAttribute('position', '0 0.2 -0.5');
+          uiPanel.setAttribute('rotation', '-15 0 0');
           uiPanel.setAttribute('visible', 'true');
 
           // ボタンのイベントリスナー設定

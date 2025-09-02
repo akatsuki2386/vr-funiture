@@ -9,56 +9,17 @@
     
     <script>
       document.addEventListener('DOMContentLoaded', () => {
-        const startVrBtn = document.getElementById('start-vr-btn');
         const vrScene = document.querySelector('a-scene');
 
-        async function startXRSession() {
-          if (!navigator.xr) {
-            alert('お使いのブラウザはWebXRに対応していません。');
-            return;
-          }
-
-          try {
-            const isSupported = await navigator.xr.isSessionSupported('immersive-vr', {
-              requiredFeatures: ['local-floor']
-            });
-
-            if (!isSupported) {
-              alert('VRセッションの開始に失敗しました。対応するVRヘッドセットが接続されているか確認してください。');
-              return;
-            }
-
-            const session = await navigator.xr.requestSession('immersive-vr', {
-              requiredFeatures: ['local-floor']
-            });
-            
-            // A-FrameのVRモードUIを無効化
-            vrScene.setAttribute('vr-mode-ui', 'enabled: false');
-            
-            // WebXRセッションをA-Frameに設定し、VRモードを開始
-            vrScene.emit('enter-vr', {
-              session: session,
-              // `requestSession()`はA-Frameの標準外のため、手動で`is_vrs_enabled`を設定
-              is_vrs_enabled: true
-            });
-
-          } catch (error) {
-            console.error('Failed to start VR session:', error);
-            alert('VRセッションの開始に失敗しました。詳細: ' + error.message);
-          }
-        }
-
-        startVrBtn.addEventListener('click', () => {
-          startXRSession();
-        });
-
+        // VRモードに移行した後の処理
         vrScene.addEventListener('enter-vr', () => {
           document.getElementById('start-ui').style.display = 'none';
 
-          const handedness = 'right';
+          const handedness = 'right'; // 利き手は一旦固定
           const rightHand = document.getElementById('right-hand');
           const leftHand = document.getElementById('left-hand');
           
+          // レイキャストの追加
           rightHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
           leftHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
           
@@ -125,7 +86,7 @@
     <a-scene 
       webxr="requiredFeatures: local-floor" 
       renderer="colorManagement: true;"
-      vr-mode-ui="enabled: false;"
+      vr-mode-ui="enterVRButton: #start-vr-btn;"
     >
       <a-assets>
       </a-assets>

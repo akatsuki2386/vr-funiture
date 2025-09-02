@@ -18,11 +18,15 @@
       document.addEventListener('DOMContentLoaded', () => {
         const vrScene = document.querySelector('a-scene');
 
+        const handSelectionUI = document.getElementById('hand-selection-ui');
+        const rightHandBtn = document.getElementById('right-hand-btn');
+        const leftHandBtn = document.getElementById('left-hand-btn');
+
         // VRモードに移行した後の処理
         vrScene.addEventListener('enter-vr', () => {
-          document.getElementById('start-ui').style.display = 'none';
+          handSelectionUI.style.display = 'none';
 
-          const handedness = 'right'; // 利き手は一旦固定
+          const handedness = localStorage.getItem('handedness'); // 保存された利き手を取得
           const rightHand = document.getElementById('right-hand');
           const leftHand = document.getElementById('left-hand');
           
@@ -47,39 +51,48 @@
           const mainMenu = document.getElementById('main-menu');
           const furnitureMenu = document.getElementById('furniture-menu');
           
-          // 「モデルの追加」ボタンのイベント
           document.getElementById('add-button').addEventListener('click', () => {
               mainMenu.setAttribute('visible', 'false');
               furnitureMenu.setAttribute('visible', 'true');
           });
           
-          // 「戻る」ボタンのイベント
           document.getElementById('back-button').addEventListener('click', () => {
               furnitureMenu.setAttribute('visible', 'false');
               mainMenu.setAttribute('visible', 'true');
           });
 
-          // 家具ボタンのクリックイベント
           furnitureData.forEach(furniture => {
               document.getElementById(`furniture-button-${furniture.id}`).addEventListener('click', () => {
                   console.log(`${furniture.name}が選択されました！`);
-                  // ここに家具モデルの生成ロジックを追加
               });
           });
+        });
+
+        // 利き手選択のイベントリスナー
+        rightHandBtn.addEventListener('click', () => {
+          localStorage.setItem('handedness', 'right');
+          vrScene.enterVR();
+        });
+        
+        leftHandBtn.addEventListener('click', () => {
+          localStorage.setItem('handedness', 'left');
+          vrScene.enterVR();
         });
       });
     </script>
   </head>
   <body>
-    <div id="start-ui" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; background: rgba(0, 0, 0, 0.7); padding: 5vw; border-radius: 10px; text-align: center; color: white; font-family: sans-serif; box-sizing: border-box; max-width: 90vw;">
-      <h1>VR Furniture Planner</h1>
-      <button id="start-vr-btn" style="padding: 1vw 2vw; margin: 1vw; font-size: 3vw;">START VR</button>
+    <div id="hand-selection-ui" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; background: rgba(0, 0, 0, 0.7); padding: 5vw; border-radius: 10px; text-align: center; color: white; font-family: sans-serif; box-sizing: border-box; max-width: 90vw;">
+      <h1>VR家具配置シミュレーション</h1>
+      <p>利き手はどちらですか？</p>
+      <button id="right-hand-btn" style="padding: 1vw 2vw; margin: 1vw; font-size: 3vw;">右利き</button>
+      <button id="left-hand-btn" style="padding: 1vw 2vw; margin: 1vw; font-size: 3vw;">左利き</button>
     </div>
 
     <a-scene 
       webxr="requiredFeatures: local-floor" 
       renderer="colorManagement: true;"
-      vr-mode-ui="enterVRButton: #start-vr-btn;"
+      vr-mode-ui="enterVRButton: #right-hand-btn, #left-hand-btn;"
     >
       <a-assets>
       </a-assets>

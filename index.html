@@ -8,7 +8,77 @@
     <script src="https://cdn.jsdelivr.net/npm/aframe-event-set-component@4.2.1/dist/aframe-event-set-component.min.js"></script>
     
     <script>
+      // 家具のデータ
+      const furnitureData = [
+          { id: 'sofa', name: 'ソファ', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/sofa.obj' },
+          { id: 'table', name: 'テーブル', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/table.obj' },
+          { id: 'chair', name: '椅子', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/chair.obj' },
+      ];
+
+      // 共通ボタン生成関数
+      function createButton(text, color, position, id) {
+          const button = document.createElement('a-plane');
+          button.setAttribute('width', '0.4');
+          button.setAttribute('height', '0.1');
+          button.setAttribute('color', color);
+          button.setAttribute('position', position);
+          button.setAttribute('text', `value: ${text}; align: center; color: white;`);
+          button.classList.add('collidable');
+          button.setAttribute('id', id);
+          return button;
+      }
+
+      // UIパネルを生成する関数
+      function createUIPanel() {
+          const panelContainer = document.createElement('a-entity');
+          panelContainer.setAttribute('position', '0 0.2 -0.5');
+          panelContainer.setAttribute('rotation', '-15 0 0');
+
+          // メインメニューパネル
+          const mainMenu = document.createElement('a-plane');
+          mainMenu.setAttribute('width', '0.5');
+          mainMenu.setAttribute('height', '0.8');
+          mainMenu.setAttribute('color', '#333');
+          mainMenu.setAttribute('opacity', '0.7');
+          mainMenu.setAttribute('id', 'main-menu');
+          
+          // 家具選択パネル
+          const furnitureMenu = document.createElement('a-plane');
+          furnitureMenu.setAttribute('width', '0.5');
+          furnitureMenu.setAttribute('height', '0.8');
+          furnitureMenu.setAttribute('color', '#555');
+          furnitureMenu.setAttribute('opacity', '0.7');
+          furnitureMenu.setAttribute('id', 'furniture-menu');
+          furnitureMenu.setAttribute('visible', 'false');
+          
+          // メインメニューのボタン
+          const addButton = createButton('モデルの追加', '#5cb85c', '0 0.3 0.01', 'add-button');
+          const helpButton = createButton('動作の説明', '#f0ad4e', '0 0 0.01', 'help-button');
+          const exitButton = createButton('シミュレーションの終了', '#d9534f', '0 -0.3 0.01', 'exit-button');
+          
+          mainMenu.appendChild(addButton);
+          mainMenu.appendChild(helpButton);
+          mainMenu.appendChild(exitButton);
+          
+          // 家具リストボタンの作成と追加
+          furnitureData.forEach((furniture, index) => {
+              const yPos = 0.3 - (index * 0.15);
+              const furnitureButton = createButton(furniture.name, '#5bc0de', `0 ${yPos} 0.01`, `furniture-button-${furniture.id}`);
+              furnitureButton.setAttribute('data-model-id', furniture.id);
+              furnitureMenu.appendChild(furnitureButton);
+          });
+
+          const backButton = createButton('戻る', '#f0ad4e', '0 -0.3 0.01', 'back-button');
+          furnitureMenu.appendChild(backButton);
+
+          panelContainer.appendChild(mainMenu);
+          panelContainer.appendChild(furnitureMenu);
+          
+          return panelContainer;
+      }
+      
       document.addEventListener('DOMContentLoaded', () => {
+        const startVrBtn = document.getElementById('start-vr-btn');
         const vrScene = document.querySelector('a-scene');
 
         // VRモードに移行した後の処理
@@ -30,50 +100,31 @@
           } else {
               rightHand.appendChild(uiPanel);
           }
+
+          // ボタンのイベントリスナー設定
+          const mainMenu = document.getElementById('main-menu');
+          const furnitureMenu = document.getElementById('furniture-menu');
+          
+          // 「モデルの追加」ボタンのイベント
+          document.getElementById('add-button').addEventListener('click', () => {
+              mainMenu.setAttribute('visible', 'false');
+              furnitureMenu.setAttribute('visible', 'true');
+          });
+          
+          // 「戻る」ボタンのイベント
+          document.getElementById('back-button').addEventListener('click', () => {
+              furnitureMenu.setAttribute('visible', 'false');
+              mainMenu.setAttribute('visible', 'true');
+          });
+
+          // 家具ボタンのクリックイベント
+          furnitureData.forEach(furniture => {
+              document.getElementById(`furniture-button-${furniture.id}`).addEventListener('click', () => {
+                  console.log(`${furniture.name}が選択されました！`);
+                  // ここに家具モデルの生成ロジックを追加
+              });
+          });
         });
-        
-        function createUIPanel() {
-            const panelContainer = document.createElement('a-entity');
-            panelContainer.setAttribute('position', '0 0.2 -0.5');
-            panelContainer.setAttribute('rotation', '-15 0 0');
-
-            const mainMenu = document.createElement('a-plane');
-            mainMenu.setAttribute('width', '0.5');
-            mainMenu.setAttribute('height', '0.8');
-            mainMenu.setAttribute('color', '#333');
-            mainMenu.setAttribute('opacity', '0.7');
-            
-            const addButton = document.createElement('a-plane');
-            addButton.setAttribute('width', '0.4');
-            addButton.setAttribute('height', '0.1');
-            addButton.setAttribute('color', '#5cb85c');
-            addButton.setAttribute('position', '0 0.3 0.01');
-            addButton.setAttribute('text', 'value: モデルの追加; align: center; color: white;');
-            addButton.classList.add('collidable');
-            
-            const helpButton = document.createElement('a-plane');
-            helpButton.setAttribute('width', '0.4');
-            helpButton.setAttribute('height', '0.1');
-            helpButton.setAttribute('color', '#f0ad4e');
-            helpButton.setAttribute('position', '0 0 0.01');
-            helpButton.setAttribute('text', 'value: 動作の説明; align: center; color: white;');
-            helpButton.classList.add('collidable');
-
-            const exitButton = document.createElement('a-plane');
-            exitButton.setAttribute('width', '0.4');
-            exitButton.setAttribute('height', '0.1');
-            exitButton.setAttribute('color', '#d9534f');
-            exitButton.setAttribute('position', '0 -0.3 0.01');
-            exitButton.setAttribute('text', 'value: シミュレーションの終了; align: center; color: white;');
-            exitButton.classList.add('collidable');
-            
-            mainMenu.appendChild(addButton);
-            mainMenu.appendChild(helpButton);
-            mainMenu.appendChild(exitButton);
-            panelContainer.appendChild(mainMenu);
-            
-            return panelContainer;
-        }
       });
     </script>
   </head>

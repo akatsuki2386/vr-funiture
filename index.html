@@ -139,17 +139,17 @@
 
       <a-entity 
         id="left-hand" 
-        hand-controls="hand: left; model: false"
-        gltf-model=""
+        hand-controls="hand: left"
         left-hand-ui>
+        <a-entity gltf-model="" visible="false"></a-entity>
       </a-entity>
       
       <a-entity 
         id="right-hand" 
-        hand-controls="hand: right; model: false"
-        gltf-model=""
+        hand-controls="hand: right"
         raycaster="objects: .collidable, #plus-button; showLine: true;" 
         right-hand-interactions>
+        <a-entity gltf-model="" visible="false"></a-entity>
       </a-entity>
 
       <a-box 

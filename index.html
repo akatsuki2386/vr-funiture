@@ -1,14 +1,34 @@
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
+    <meta charset="utf-8" />
+    <title>WebXR MR App</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-</head>
-<body>
-    <a-scene xr-mode-ui="enabled: true" vr-mode-ui="enabled: false" ar-mode="true">
-        <a-sky color="transparent"></a-sky>
+  </head>
+  <body>
+    <a-scene
+      xr-mode-ui="enabled: true"
+      vr-mode-ui="enabled: false"
+      ar-mode="true"
+    >
+      <a-sky color="transparent"></a-sky>
 
-        <a-box position="0 1.5 -1" rotation="0 45 0" color="#4CC3D9"></a-box>
+      <a-box
+        position="0 1.5 -1"
+        rotation="0 45 0"
+        color="#4CC3D9"
+        shadow
+      ></a-box>
 
+      <a-light type="ambient" color="#FFF"></a-light>
+      <a-light
+        type="directional"
+        color="#FFF"
+        intensity="0.5"
+        position="-1 1 2"
+      ></a-light>
+
+      <a-camera position="0 1.6 0"></a-camera>
     </a-scene>
-</body>
+  </body>
 </html>

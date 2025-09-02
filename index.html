@@ -61,8 +61,6 @@
       document.addEventListener('DOMContentLoaded', () => {
         const vrScene = document.querySelector('a-scene');
         const handSelectionUI = document.getElementById('hand-selection-ui');
-        const rightHandBtn = document.getElementById('right-hand-btn');
-        const leftHandBtn = document.getElementById('left-hand-btn');
         const vrUiContainer = document.getElementById('vr-ui-container');
         const mainMenu = document.getElementById('main-menu');
         const furnitureMenu = document.getElementById('furniture-menu');
@@ -87,14 +85,12 @@
         });
 
         // 利き手選択のイベントリスナー
-        rightHandBtn.addEventListener('click', () => {
+        document.getElementById('right-hand-btn').addEventListener('click', () => {
           localStorage.setItem('handedness', 'right');
-          vrScene.enterVR();
         });
         
-        leftHandBtn.addEventListener('click', () => {
+        document.getElementById('left-hand-btn').addEventListener('click', () => {
           localStorage.setItem('handedness', 'left');
-          vrScene.enterVR();
         });
 
         // パネルUIの画面遷移ロジック
@@ -109,9 +105,12 @@
         });
 
         furnitureData.forEach(furniture => {
-            document.getElementById(`furniture-button-${furniture.id}`).addEventListener('click', () => {
-                console.log(`${furniture.name}が選択されました！`);
-            });
+            const button = document.getElementById(`furniture-button-${furniture.id}`);
+            if (button) {
+                button.addEventListener('click', () => {
+                    console.log(`${furniture.name}が選択されました！`);
+                });
+            }
         });
       });
     </script>
@@ -141,7 +140,7 @@
     <a-scene 
       webxr="requiredFeatures: local-floor, dom-overlay" 
       renderer="colorManagement: true;"
-      vr-mode-ui="enterVRButton: #right-hand-btn, #left-hand-btn;"
+      vr-mode-ui="enterVRButton: #right-hand-btn, #left-hand-btn; enabled: true;"
       dom-overlay="root: #vr-ui-container"
     >
       <a-assets>

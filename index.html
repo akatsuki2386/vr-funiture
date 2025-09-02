@@ -12,29 +12,31 @@
           controllerEl.addEventListener('controllerconnected', (evt) => {
             console.log(`${evt.detail.hand} hand controller connected.`);
             
-            // UIパネルを作成
-            const uiPanel = document.createElement('a-entity');
-            uiPanel.setAttribute('id', `ui-panel-${evt.detail.hand}`);
-            uiPanel.setAttribute('geometry', {
-              primitive: 'plane',
-              width: 0.5,
-              height: 0.3
-            });
-            uiPanel.setAttribute('material', {
-              color: '#fff',
-              transparent: true,
-              opacity: 0.8
-            });
-            uiPanel.setAttribute('text', {
-              value: 'Hello WebXR!',
-              color: '#000',
-              align: 'center',
-              width: 1.2
-            });
-            
-            // コントローラーの正面に配置
-            uiPanel.setAttribute('position', '0 0.1 -0.5'); 
-            controllerEl.appendChild(uiPanel);
+            // 利き手ではない方（左手）のみUIパネルを作成
+            if (evt.detail.hand === 'left') {
+              const uiPanel = document.createElement('a-entity');
+              uiPanel.setAttribute('id', `ui-panel-${evt.detail.hand}`);
+              uiPanel.setAttribute('geometry', {
+                primitive: 'plane',
+                width: 0.5,
+                height: 0.3
+              });
+              uiPanel.setAttribute('material', {
+                color: '#fff',
+                transparent: true,
+                opacity: 0.8
+              });
+              uiPanel.setAttribute('text', {
+                value: 'Hello WebXR!',
+                color: '#000',
+                align: 'center',
+                width: 1.2
+              });
+              
+              // コントローラーの正面に配置
+              uiPanel.setAttribute('position', '0 0.1 -0.5'); 
+              controllerEl.appendChild(uiPanel);
+            }
           });
           
           // トリガーが押されたときの処理

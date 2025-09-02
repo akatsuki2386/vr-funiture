@@ -23,20 +23,25 @@
         init: function () {
           const controllerId = this.data.hand === 'left' ? 'left-hand' : 'right-hand';
           const controllerEl = document.getElementById(controllerId);
-          
-          if (controllerEl) {
-            controllerEl.appendChild(this.el);
+
+          if (!controllerEl.hasLoaded) {
+            // コントローラーがまだロードされていない場合は、ロード完了を待機
+            controllerEl.addEventListener('loaded', () => {
+              this.el.setAttribute('parent', controllerId);
+              this.el.setAttribute('position', '0 0.2 -0.5');
+              this.el.setAttribute('rotation', '-15 0 0');
+            });
+          } else {
+            // すでにロード済みなら直接アタッチ
+            this.el.setAttribute('parent', controllerId);
             this.el.setAttribute('position', '0 0.2 -0.5');
             this.el.setAttribute('rotation', '-15 0 0');
-          } else {
-            console.error('Controller element not found.');
           }
         }
       });
 
       document.addEventListener('DOMContentLoaded', () => {
         const vrScene = document.querySelector('a-scene');
-
         const handSelectionUI = document.getElementById('hand-selection-ui');
         const rightHandBtn = document.getElementById('right-hand-btn');
         const leftHandBtn = document.getElementById('left-hand-btn');

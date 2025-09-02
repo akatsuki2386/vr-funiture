@@ -14,19 +14,36 @@
 
         // WebXRのセッションを開始する関数
         async function startXRSession() {
+          // ブラウザがWebXRをサポートしているか確認
+          if (!navigator.xr) {
+            alert('お使いのブラウザはWebXRに対応していません。');
+            return;
+          }
+
           try {
+            // immersive-vrモードが利用可能か確認
+            const isSupported = await navigator.xr.isSessionSupported('immersive-vr', {
+              requiredFeatures: ['local-floor', 'passthrough']
+            });
+
+            if (!isSupported) {
+              alert('VRセッションの開始に失敗しました。対応するVRヘッドセットが接続されているか確認してください。');
+              return;
+            }
+
             const session = await navigator.xr.requestSession('immersive-vr', {
               requiredFeatures: ['local-floor', 'passthrough']
             });
             
             // A-Frameにセッションをアタッチ
             vrScene.setAttribute('vr-mode-ui', 'enabled: false');
+            vrScene.setAttribute('vr-mode-ui', 'enabled: false');
             vrScene.xrSession = session;
             vrScene.enterVR();
 
           } catch (error) {
             console.error('Failed to start VR session:', error);
-            alert('VRセッションの開始に失敗しました。対応するVRヘッドセットが接続されているか確認してください。');
+            alert('VRセッションの開始に失敗しました。詳細: ' + error.message);
           }
         }
 

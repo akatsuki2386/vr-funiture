@@ -8,7 +8,6 @@
     <script src="https://cdn.jsdelivr.net/npm/aframe-event-set-component@4.2.1/dist/aframe-event-set-component.min.js"></script>
     
     <script>
-      // 家具のデータ
       const furnitureData = [
           { id: 'sofa', name: 'ソファ', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/sofa.obj' },
           { id: 'table', name: 'テーブル', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/table.obj' },
@@ -21,7 +20,6 @@
         const rightHandBtn = document.getElementById('right-hand-btn');
         const leftHandBtn = document.getElementById('left-hand-btn');
 
-        // VRモードに移行した後の処理
         vrScene.addEventListener('enter-vr', () => {
           handSelectionUI.style.display = 'none';
 
@@ -29,21 +27,18 @@
           const rightHand = document.getElementById('right-hand');
           const leftHand = document.getElementById('left-hand');
           
-          // レイキャストの追加
           rightHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
           leftHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
           
           const uiPanel = document.getElementById('ui-panel-holder');
           
-          // UIパネルをカメラの正面に固定配置
-          // カメラエンティティの子要素にすることで、視点の移動に追従
+          // VRモード移行後も、UIパネルをカメラの正面に固定
           const camera = document.querySelector('[camera]');
           camera.appendChild(uiPanel);
-          uiPanel.setAttribute('position', '0 0 -1.5'); // 目の前1.5mの位置
+          uiPanel.setAttribute('position', '0 0 -1.5');
           uiPanel.setAttribute('rotation', '0 0 0');
           uiPanel.setAttribute('visible', 'true');
 
-          // ボタンのイベントリスナー設定
           const mainMenu = document.getElementById('main-menu');
           const furnitureMenu = document.getElementById('furniture-menu');
           
@@ -64,7 +59,6 @@
           });
         });
 
-        // 利き手選択のイベントリスナー
         rightHandBtn.addEventListener('click', () => {
           localStorage.setItem('handedness', 'right');
           vrScene.enterVR();

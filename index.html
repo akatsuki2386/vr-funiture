@@ -2,21 +2,67 @@
 <html>
   <head>
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script>
+      // 既存のコントローラーUIコンポーネントを拡張
+      AFRAME.registerComponent('controller-ui', {
+        init: function() {
+          this.el.addEventListener('controllerconnected', (evt) => {
+            const controllerEl = this.el;
+            
+            // UIパネルを作成
+            const uiPanel = document.createElement('a-entity');
+            uiPanel.setAttribute('id', `ui-panel-${evt.detail.hand}`);
+            uiPanel.setAttribute('geometry', 'primitive: plane; width: 0.5; height: 0.3');
+            uiPanel.setAttribute('material', 'color: #fff; transparent: true; opacity: 0.8');
+            uiPanel.setAttribute('text', 'value: Hello WebXR!; color: #000; align: center; width: 1.2');
+            uiPanel.setAttribute('position', '0 0.1 -0.5'); 
+            controllerEl.appendChild(uiPanel);
+          });
+          
+          // トリガーが押されたときの処理
+          this.el.addEventListener('triggerdown', () => {
+            console.log('Trigger pressed!');
+            const raycaster = this.el.components.raycaster;
+            if (raycaster) {
+              const intersections = raycaster.intersections;
+              if (intersections.length > 0) {
+                // レイキャストが当たった最初のオブジェクトをハイライト
+                intersections[0].object.el.setAttribute('material', 'color', '#FF0000');
+              }
+            }
+          });
+          
+          // トリガーが離されたときの処理
+          this.el.addEventListener('triggerup', () => {
+            console.log('Trigger released!');
+            const raycaster = this.el.components.raycaster;
+            if (raycaster) {
+              const intersections = raycaster.intersections;
+              if (intersections.length > 0) {
+                // ハイライトを元に戻す
+                intersections[0].object.el.setAttribute('material', 'color', '#4CC3D9');
+              }
+            }
+          });
+        }
+      });
+    </script>
   </head>
   <body>
-    <a-scene ar-mode-ui="enabled: true;" renderer="colorManagement: true;">
+    <a-scene xr-mode-ui="true" renderer="colorManagement: true;" ar-mode-ui="enabled: true;">
       
-      <a-camera ar-camera-mode="true"></a-camera>
+      <a-camera look-controls ar-camera-mode="true" position="0 1.6 0"></a-camera>
 
-      <a-entity id="right-hand" hand-controls="hand: right">
-        <a-gltf-model src="https://cdn.aframe.io/controllers/oculus-quest-3-controller/oculus-quest-3-controller-right.gltf"
-                      position="0 0 0" 
-                      rotation="0 0 0"
-                      scale="1 1 1">
-        </a-gltf-model>
-      </a-entity>
+      <a-entity
+        id="right-hand"
+        hand-controls="hand: right"
+        gltf-model="url(https://cdn.aframe.io/examples/mixed-reality/oculus-touch.gltf)"
+        raycaster="objects: .collidable"
+        controller-ui
+      ></a-entity>
 
-      <a-box position="0 0.5 -2" rotation="0 45 0" color="#4CC3D9" shadow></a-box>
+      <a-box class="collidable" position="-1 0.5 -3" rotation="0 45 0" color="#4CC3D9" shadow></a-box>
+      <a-sphere class="collidable" position="1 0.5 -3" rotation="0 45 0" color="#EF2D5E" shadow></a-sphere>
 
     </a-scene>
   </body>

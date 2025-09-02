@@ -9,33 +9,62 @@
     
     <script>
       document.addEventListener('DOMContentLoaded', () => {
-        const handSelectionUI = document.getElementById('hand-selection-ui');
-        const rightHandBtn = document.getElementById('right-hand-btn');
-        const leftHandBtn = document.getElementById('left-hand-btn');
-        const scene = document.querySelector('a-scene');
+        const startVrBtn = document.getElementById('start-vr-btn');
+        const vrScene = document.querySelector('a-scene');
 
+        startVrBtn.addEventListener('click', () => {
+          // VRモードへの移行を試みる
+          if (vrScene.hasLoaded) {
+            vrScene.enterVR();
+          } else {
+            vrScene.addEventListener('loaded', () => {
+              vrScene.enterVR();
+            });
+          }
+        });
+
+        vrScene.addEventListener('enter-vr', () => {
+            // VRモードに移行した際にUIを非表示にする
+            document.getElementById('start-ui').style.display = 'none';
+            
+            // 利き手（ここでは仮に右利きと設定）に応じてUIを生成
+            const handedness = 'right'; // テストのため、一旦固定
+            
+            const rightHand = document.getElementById('right-hand');
+            const leftHand = document.getElementById('left-hand');
+            
+            // レイキャストの追加
+            rightHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
+            leftHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
+            
+            const uiPanel = createUIPanel();
+            
+            if (handedness === 'right') {
+                leftHand.appendChild(uiPanel);
+            } else {
+                rightHand.appendChild(uiPanel);
+            }
+        });
+        
         // UIパネルを生成する関数
         function createUIPanel() {
-            // パネルUIのコンテナエンティティ
             const panelContainer = document.createElement('a-entity');
             panelContainer.setAttribute('position', '0 0.2 -0.5');
             panelContainer.setAttribute('rotation', '-15 0 0');
 
-            // メインメニューパネル
             const mainMenu = document.createElement('a-plane');
             mainMenu.setAttribute('width', '0.5');
             mainMenu.setAttribute('height', '0.8');
             mainMenu.setAttribute('color', '#333');
             mainMenu.setAttribute('opacity', '0.7');
             
-            // ボタンを追加
             const addButton = document.createElement('a-plane');
             addButton.setAttribute('width', '0.4');
             addButton.setAttribute('height', '0.1');
             addButton.setAttribute('color', '#5cb85c');
             addButton.setAttribute('position', '0 0.3 0.01');
             addButton.setAttribute('text', 'value: モデルの追加; align: center; color: white;');
-            addButton.setAttribute('add-collidable-class', '');
+            addButton.classList.add('collidable');
             
             const helpButton = document.createElement('a-plane');
             helpButton.setAttribute('width', '0.4');
@@ -43,7 +72,7 @@
             helpButton.setAttribute('color', '#f0ad4e');
             helpButton.setAttribute('position', '0 0 0.01');
             helpButton.setAttribute('text', 'value: 動作の説明; align: center; color: white;');
-            helpButton.setAttribute('add-collidable-class', '');
+            helpButton.classList.add('collidable');
 
             const exitButton = document.createElement('a-plane');
             exitButton.setAttribute('width', '0.4');
@@ -51,7 +80,7 @@
             exitButton.setAttribute('color', '#d9534f');
             exitButton.setAttribute('position', '0 -0.3 0.01');
             exitButton.setAttribute('text', 'value: シミュレーションの終了; align: center; color: white;');
-            exitButton.setAttribute('add-collidable-class', '');
+            exitButton.classList.add('collidable');
             
             mainMenu.appendChild(addButton);
             mainMenu.appendChild(helpButton);
@@ -60,65 +89,18 @@
             
             return panelContainer;
         }
-
-        // 利き手の選択ボタンがクリックされた時の処理
-        rightHandBtn.addEventListener('click', () => handleHandSelection('right'));
-        leftHandBtn.addEventListener('click', () => handleHandSelection('left'));
-
-        function handleHandSelection(handedness) {
-            handSelectionUI.style.display = 'none';
-
-            // VRモードへ移行
-            if (scene.is('vr-mode')) {
-                // すでにVRモードの場合は何もしない
-            } else if (scene.hasLoaded) {
-                scene.enterVR();
-            } else {
-                scene.addEventListener('loaded', () => {
-                    scene.enterVR();
-                });
-            }
-            
-            const rightHand = document.getElementById('right-hand');
-            const leftHand = document.getElementById('left-hand');
-            
-            // レイキャストの追加
-            rightHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
-            leftHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
-
-            const uiPanelHolder = document.getElementById('ui-panel-holder');
-            const uiPanel = createUIPanel();
-
-            // 利き手に応じてUIを配置
-            if (handedness === 'right') {
-                leftHand.appendChild(uiPanel);
-            } else {
-                rightHand.appendChild(uiPanel);
-            }
-        }
-
-        // `a-plane`をインタラクティブにするためにクラスを追加
-        AFRAME.registerComponent('add-collidable-class', {
-            init: function () {
-                this.el.classList.add('collidable');
-            }
-        });
       });
     </script>
   </head>
   <body>
-    <div id="hand-selection-ui" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; background: rgba(0, 0, 0, 0.7); padding: 5vw; border-radius: 10px; text-align: center; color: white; font-family: sans-serif; box-sizing: border-box; max-width: 90vw;">
-      <h1>VR家具配置シミュレーション</h1>
-      <p>利き手はどちらですか？</p>
-      <button id="right-hand-btn" style="padding: 1vw 2vw; margin: 1vw; font-size: 3vw;">右利き</button>
-      <button id="left-hand-btn" style="padding: 1vw 2vw; margin: 1vw; font-size: 3vw;">左利き</button>
+    <div id="start-ui" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; background: rgba(0, 0, 0, 0.7); padding: 5vw; border-radius: 10px; text-align: center; color: white; font-family: sans-serif; box-sizing: border-box; max-width: 90vw;">
+      <h1>VR Furniture Planner</h1>
+      <button id="start-vr-btn" style="padding: 1vw 2vw; margin: 1vw; font-size: 3vw;">START VR</button>
     </div>
 
     <a-scene 
       webxr="requiredFeatures: passthrough, immersive-vr" 
       renderer="colorManagement: true;"
-      vr-mode-ui="enterVRButton: #right-hand-btn, #left-hand-btn;"
-      style="display: none;"
     >
       <a-assets>
         </a-assets>

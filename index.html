@@ -15,29 +15,6 @@
           { id: 'chair', name: '椅子', model: 'https://cdn.aframe.io/models/gltf/a-frame-3d-model/obj/chair.obj' },
       ];
 
-      // パネルUIとレイキャストをセットアップする関数
-      function setupVrControls(handedness) {
-        const rightHand = document.getElementById('right-hand');
-        const leftHand = document.getElementById('left-hand');
-        const uiPanel = document.getElementById('ui-panel-holder');
-        const raycaster = 'objects: .collidable; showLine: true; far: 5;';
-        
-        // レイキャストの追加
-        rightHand.setAttribute('raycaster', raycaster);
-        leftHand.setAttribute('raycaster', raycaster);
-
-        // 利き手に応じてUIパネルをコントローラーに追従させる
-        if (handedness === 'right') {
-            leftHand.appendChild(uiPanel);
-        } else {
-            rightHand.appendChild(uiPanel);
-        }
-
-        uiPanel.setAttribute('position', '0 0.2 -0.5');
-        uiPanel.setAttribute('rotation', '-15 0 0');
-        uiPanel.setAttribute('visible', 'true');
-      }
-
       document.addEventListener('DOMContentLoaded', () => {
         const vrScene = document.querySelector('a-scene');
         const handSelectionUI = document.getElementById('hand-selection-ui');
@@ -47,17 +24,25 @@
         // VRモードに移行した後の処理
         vrScene.addEventListener('enter-vr', () => {
           handSelectionUI.style.display = 'none';
-          const handedness = localStorage.getItem('handedness');
-          
-          // コントローラーが完全にロードされた後にUIパネルをアタッチ
-          // A-Frameの`controller-ready`イベントを使用
-          const targetHand = handedness === 'right' ? 'left' : 'right';
-          const targetHandEl = document.getElementById(targetHand === 'left' ? 'left-hand' : 'right-hand');
 
-          targetHandEl.addEventListener('model-loaded', () => {
-              setupVrControls(handedness);
-          });
+          const handedness = localStorage.getItem('handedness');
+          const rightHand = document.getElementById('right-hand');
+          const leftHand = document.getElementById('left-hand');
           
+          // レイキャストの追加
+          rightHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
+          leftHand.setAttribute('raycaster', 'objects: .collidable; showLine: true; far: 5;');
+          
+          const uiPanel = document.getElementById('ui-panel-holder');
+          
+          // UIパネルをカメラの正面に固定配置
+          // カメラエンティティの子要素にすることで、視点の移動に追従
+          const camera = document.querySelector('[camera]');
+          camera.appendChild(uiPanel);
+          uiPanel.setAttribute('position', '0 0 -1.5'); // 目の前1.5mの位置
+          uiPanel.setAttribute('rotation', '0 0 0');
+          uiPanel.setAttribute('visible', 'true');
+
           // ボタンのイベントリスナー設定
           const mainMenu = document.getElementById('main-menu');
           const furnitureMenu = document.getElementById('furniture-menu');

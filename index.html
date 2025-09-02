@@ -154,17 +154,17 @@
 
       <a-entity 
         id="left-hand" 
-        hand-controls="hand: left; transparent: true; opacity: 0"
-        left-hand-ui
-        set-model-transparent>
+        hand-controls="hand: left"
+        gltf-model="null"
+        left-hand-ui>
       </a-entity>
       
       <a-entity 
         id="right-hand" 
-        hand-controls="hand: right; transparent: true; opacity: 0"
+        hand-controls="hand: right"
+        gltf-model="null"
         raycaster="objects: .collidable, #plus-button; showLine: true;" 
-        right-hand-interactions
-        set-model-transparent>
+        right-hand-interactions>
       </a-entity>
 
       <a-box 
@@ -195,5 +195,6 @@
     </script>
   </body>
 </html>
+
 
 

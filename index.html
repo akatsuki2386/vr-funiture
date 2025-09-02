@@ -61,12 +61,32 @@
         }
       });
     </script>
+    <style>
+      #startButton {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 20px 40px;
+        font-size: 24px;
+        cursor: pointer;
+        z-index: 999;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 10px;
+      }
+    </style>
   </head>
   <body>
+    <button id="startButton">START</button>
+
     <a-scene 
+      id="ar-scene"
       xr-mode-ui="true" 
       renderer="colorManagement: true;" 
-      ar-mode-ui="enabled: true;">
+      ar-mode-ui="enabled: false;"
+      embedded>
       
       <a-camera 
         look-controls 
@@ -103,5 +123,15 @@
       </a-sphere>
 
     </a-scene>
+    
+    <script>
+      document.getElementById('startButton').addEventListener('click', () => {
+        const sceneEl = document.querySelector('a-scene');
+        if (sceneEl.hasLoaded) {
+          sceneEl.enterAR();
+          document.getElementById('startButton').style.display = 'none';
+        }
+      });
+    </script>
   </body>
 </html>

@@ -2,53 +2,21 @@
 <html>
   <head>
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-    <script>
-      AFRAME.registerComponent('controller-ui', {
-        init: function() {
-          this.el.addEventListener('controllerconnected', (evt) => {
-            const controller = this.el.components['laser-controls'] ? 'laser-controls' : 'raycaster';
-            const controllerEl = evt.detail.hand === 'right' ? document.querySelector('#right-hand') : document.querySelector('#left-hand');
-            
-            // UIパネルを作成し、コントローラーに追従させる
-            const uiPanel = document.createElement('a-entity');
-            uiPanel.setAttribute('id', 'ui-panel');
-            uiPanel.setAttribute('geometry', {
-              primitive: 'plane',
-              width: 0.5,
-              height: 0.3
-            });
-            uiPanel.setAttribute('material', {
-              color: '#fff',
-              transparent: true,
-              opacity: 0.8
-            });
-            uiPanel.setAttribute('text', {
-              value: 'Hello WebXR!',
-              color: '#000',
-              align: 'center',
-              width: 1.2
-            });
-            
-            // コントローラーの正面に配置
-            uiPanel.setAttribute('position', '0 0.1 -0.5'); 
-            uiPanel.setAttribute('rotation', '0 0 0');
-            
-            // コントローラーの子要素として追加
-            controllerEl.appendChild(uiPanel);
-          });
-        }
-      });
-    </script>
   </head>
   <body>
-    <a-scene xr-mode-ui="true" renderer="colorManagement: true;" ar-mode-ui="enabled: true;">
+    <a-scene ar-mode-ui="enabled: true;" renderer="colorManagement: true;">
       
-      <a-camera look-controls ar-camera-mode="true" position="0 1.6 0"></a-camera>
+      <a-camera ar-camera-mode="true"></a-camera>
 
-      <a-entity id="left-hand" hand-controls="hand: left" controller-ui></a-entity>
-      <a-entity id="right-hand" hand-controls="hand: right" controller-ui></a-entity>
+      <a-entity id="right-hand" hand-controls="hand: right">
+        <a-gltf-model src="https://cdn.aframe.io/controllers/oculus-quest-3-controller/oculus-quest-3-controller-right.gltf"
+                      position="0 0 0" 
+                      rotation="0 0 0"
+                      scale="1 1 1">
+        </a-gltf-model>
+      </a-entity>
 
-      <a-box position="-1 0.5 -3" rotation="0 45 0" color="#4CC3D9" shadow></a-box>
+      <a-box position="0 0.5 -2" rotation="0 45 0" color="#4CC3D9" shadow></a-box>
 
     </a-scene>
   </body>

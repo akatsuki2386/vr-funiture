@@ -3,6 +3,20 @@
   <head>
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script>
+      // 白い手モデルを非表示にするコンポーネント
+      AFRAME.registerComponent('hide-controller-model', {
+        init: function() {
+          const controllerEl = this.el;
+          
+          controllerEl.addEventListener('model-loaded', () => {
+            const mesh = controllerEl.getObject3D('mesh');
+            if (mesh) {
+              mesh.visible = false;
+            }
+          });
+        }
+      });
+
       // 左手コントローラーUIのコンポーネント
       AFRAME.registerComponent('left-hand-ui', {
         init: function() {
@@ -34,7 +48,7 @@
             headerText.setAttribute('position', '0 0.1 0.01');
             uiPanel.appendChild(headerText);
 
-            // + ボタンを作成
+            // + ボタンとテキストを子要素として作成
             const plusButton = document.createElement('a-entity');
             plusButton.setAttribute('id', 'plus-button');
             plusButton.setAttribute('geometry', {
@@ -53,9 +67,20 @@
               align: 'center',
               width: 0.5
             });
-            plusButton.setAttribute('position', '0 -0.05 0.01');
+            plusButton.setAttribute('position', '-0.15 -0.05 0.01'); // 左端に配置
             uiPanel.appendChild(plusButton);
             
+            // モデルの追加テキストを作成
+            const addModelText = document.createElement('a-entity');
+            addModelText.setAttribute('text', {
+              value: 'モデルの追加',
+              color: '#000',
+              align: 'left',
+              width: 0.7
+            });
+            addModelText.setAttribute('position', '-0.05 -0.05 0.01'); // ＋ボタンの右に配置
+            uiPanel.appendChild(addModelText);
+
             // コントローラーの正面にパネルを配置
             uiPanel.setAttribute('position', '0 0.1 -0.5'); 
             controllerEl.appendChild(uiPanel);
@@ -142,14 +167,16 @@
       <a-entity 
         id="left-hand" 
         tracked-controls="hand: left"
-        left-hand-ui>
+        left-hand-ui
+        hide-controller-model>
       </a-entity>
       
       <a-entity 
         id="right-hand" 
         tracked-controls="hand: right"
-        raycaster="objects: .collidable, #plus-button; showLine: true;" 
-        right-hand-interactions>
+        raycaster="objects: .collidable, #plus-button;" 
+        right-hand-interactions
+        hide-controller-model>
       </a-entity>
 
       <a-box 

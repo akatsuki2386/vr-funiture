@@ -3,16 +3,16 @@
   <head>
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script>
-      // 白い手モデルを非表示にするコンポーネント
-      AFRAME.registerComponent('hide-controller-model', {
+      // 3Dモデルを透明にするコンポーネント
+      AFRAME.registerComponent('set-model-transparent', {
         init: function() {
           const controllerEl = this.el;
           
           controllerEl.addEventListener('model-loaded', () => {
-            // ロードされたメッシュオブジェクトを取得し、非表示にする
             const mesh = controllerEl.getObject3D('mesh');
-            if (mesh) {
-              mesh.visible = false;
+            if (mesh && mesh.material) {
+              mesh.material.transparent = true;
+              mesh.material.opacity = 0;
             }
           });
         }
@@ -156,7 +156,7 @@
         id="left-hand" 
         hand-controls="hand: left"
         left-hand-ui
-        hide-controller-model>
+        set-model-transparent>
       </a-entity>
       
       <a-entity 
@@ -164,7 +164,7 @@
         hand-controls="hand: right"
         raycaster="objects: .collidable, #plus-button; showLine: true;" 
         right-hand-interactions
-        hide-controller-model>
+        set-model-transparent>
       </a-entity>
 
       <a-box 

@@ -1,18 +1,36 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>A-Frame MR空間の例</title>
+    <title>Meta Quest 3 MR (AR) コントローラー & ハンドトラッキング</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@ar-js-org/ar.js@3.4.0/aframe/build/aframe-ar.js"></script>
   </head>
   <body>
-    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;">
+    <a-scene xr-mode-ui="enabled: true"
+             webxr="requiredFeatures: local-floor, hand-tracking; optionalFeatures: dom-overlay; referenceSpaceType: local-floor;">
 
-      <a-marker-camera preset="hiro"></a-marker-camera>
+      <a-entity id="rig" position="0 0 0" camera look-controls wasd-controls>
+        <a-entity id="camera" position="0 1.6 0"></a-entity>
 
-      <a-entity>
-        <a-box position="0 0.5 0" color="#4CC3D9"></a-box>
+        <a-entity id="leftHand"
+                  oculus-touch-controls="hand: left"
+                  laser-controls="hand: left"
+                  raycaster="objects: .collidable; far: 10;"
+                  line="color: #4CC3D9; opacity: 0.75"
+                  emitevents="true"></a-entity>
+
+        <a-entity id="rightHand"
+                  oculus-touch-controls="hand: right"
+                  laser-controls="hand: right"
+                  raycaster="objects: .collidable; far: 10;"
+                  line="color: #4CC3D9; opacity: 0.75"
+                  emitevents="true"></a-entity>
       </a-entity>
-    </a-scene>
+
+      <a-plane position="0 0 -2" rotation="-90 0 0" width="4" height="4" color="#7BC8A4" visible="false"></a-plane>
+
+      <a-box class="collidable" position="0 1 -1" color="#FF69B4" scale="0.3 0.3 0.3"></a-box>
+      <a-sphere class="collidable" position="0.5 1.2 -1.5" color="#00FFFF" scale="0.4 0.4 0.4"></a-sphere>
+
+      </a-scene>
   </body>
 </html>

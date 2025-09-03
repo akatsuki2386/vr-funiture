@@ -1,38 +1,19 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>A-Frame VR レイキャスト体験</title>
+    <title>A-Frame VRコントローラーモデルの指定</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script>
-      AFRAME.registerComponent('raycaster-listener', {
-        init: function () {
-          // レイキャストが当たったときのイベント
-          this.el.addEventListener('raycaster-intersected', evt => {
-            this.el.setAttribute('material', 'color', '#FF0000'); // 赤色に変更
-          });
-          // レイキャストが外れたときのイベント
-          this.el.addEventListener('raycaster-intersected-cleared', evt => {
-            this.el.setAttribute('material', 'color', '#0095FF'); // 元の色に戻す
-          });
-        }
-      });
-    </script>
   </head>
   <body>
     <a-scene>
-      <a-entity camera look-controls wasd-controls position="0 1.6 0"></a-entity>
-
-      <a-entity laser-controls="hand: right"></a-entity>
-      
-      <a-box 
-        position="0 1.5 -2" 
-        rotation="0 45 0" 
-        color="#0095FF"
-        raycaster-listener
-      ></a-box>
-
       <a-plane position="0 0 -4" rotation="-90 0 0" width="10" height="10" color="#7BC8A4"></a-plane>
-      <a-sky color="#ECECEC"></a-sky>
+
+      <a-entity laser-controls="hand: left" oculus-touch-controls="hand: left"></a-entity>
+
+      <a-entity laser-controls="hand: right" oculus-touch-controls="hand: right"></a-entity>
+      
+      <a-entity camera look-controls wasd-controls position="0 1.6 0"></a-entity>
+      
     </a-scene>
   </body>
 </html>

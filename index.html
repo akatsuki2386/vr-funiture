@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebXR AR for Smart Glasses</title>
+    <title>Meta Quest 3 AR Cube</title>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/aframevr/aframe-extras@v7.2.0/dist/aframe-extras.min.js"></script>
     <style>
-        body { margin: 0; }
-        canvas { display: block; }
+        body { margin: 0; overflow: hidden; }
         #ar-button {
             position: fixed;
             bottom: 20px;
@@ -19,12 +20,46 @@
             border-radius: 8px;
             cursor: pointer;
             z-index: 1000;
-            display: none; /* 初期状態ではボタンを非表示 */
         }
     </style>
 </head>
 <body>
     <button id="ar-button">START AR</button>
-    <script src="main.js"></script>
+    <a-scene
+        renderer="logarithmicDepthBuffer: true;"
+        ar-mode="mode: immersive-ar; requiredFeatures: ['hit-test', 'local-floor'];"
+        vr-mode-ui="enabled: false;"
+        ar-ui="sessionType: 'immersive-ar'"
+    >
+        <a-entity
+            id="cube"
+            geometry="primitive: box"
+            material="color: #4CC3D9"
+            position="0 0 -1"
+            scale="0.2 0.2 0.2"
+        ></a-entity>
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+    </a-scene>
+    <script>
+        const arButton = document.getElementById('ar-button');
+        const arScene = document.querySelector('a-scene');
+
+        arButton.addEventListener('click', async () => {
+            if (arScene.is('ar-mode')) {
+                // セッションが既に開始している場合は何もしない
+                return;
+            }
+            try {
+                // XRセッションを開始
+                const session = await arScene.enterAR();
+                console.log('AR session started:', session);
+                // ボタンを非表示にする
+                arButton.style.display = 'none';
+            } catch (e) {
+                console.error('Failed to start AR session:', e);
+                alert('ARセッションの開始に失敗しました。このデバイスはARに対応していないか、または設定を確認してください。');
+            }
+        });
+    </script>
 </body>
 </html>

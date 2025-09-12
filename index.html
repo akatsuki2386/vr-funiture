@@ -1,65 +1,60 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Meta Quest 3 AR Cube</title>
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/aframevr/aframe-extras@v7.2.0/dist/aframe-extras.min.js"></script>
-    <style>
-        body { margin: 0; overflow: hidden; }
-        #ar-button {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 15px 30px;
-            font-size: 1.2rem;
-            font-family: sans-serif;
-            color: white;
-            background-color: #4CAF50;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            z-index: 1000;
-        }
-    </style>
+  <title>WebXR Passthrough AR</title>
 </head>
 <body>
-    <button id="ar-button">START AR</button>
-    <a-scene
-        renderer="logarithmicDepthBuffer: true;"
-        ar-mode="mode: immersive-ar; requiredFeatures: ['hit-test', 'local-floor'];"
-        vr-mode-ui="enabled: false;"
-        ar-ui="sessionType: 'immersive-ar'"
-    >
-        <a-entity
-            id="cube"
-            geometry="primitive: box"
-            material="color: #4CC3D9"
-            position="0 0 -1"
-            scale="0.2 0.2 0.2"
-        ></a-entity>
-        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-    </a-scene>
-    <script>
-        const arButton = document.getElementById('ar-button');
-        const arScene = document.querySelector('a-scene');
+  <h1>WebXR Passthrough AR</h1>
+  <button id="startButton">Start AR</button>
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.142.0/build/three.module.js';
 
-        arButton.addEventListener('click', async () => {
-            if (arScene.is('ar-mode')) {
-                // セッションが既に開始している場合は何もしない
-                return;
+    let scene, camera, renderer;
+    let passthrough;
+
+    // ボタンのクリックイベント
+    document.getElementById('startButton').addEventListener('click', async () => {
+      if ('xr' in navigator) {
+        try {
+          const session = await navigator.xr.requestSession('immersive-ar', {
+            optionalFeatures: ['dom-overlay', 'unbounded', 'plane-detection', 'hit-test', 'local-floor'],
+            requiredFeatures: ['hit-test']
+          });
+
+          // THREE.jsのセットアップ
+          renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+          renderer.setSize(window.innerWidth, window.innerHeight);
+          document.body.appendChild(renderer.domElement);
+
+          scene = new THREE.Scene();
+          camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+          // ARセッションの開始
+          renderer.xr.enabled = true;
+          renderer.xr.setReferenceSpaceType('local');
+          renderer.xr.setSession(session);
+
+          // パススルーAPIの有効化
+          if (session.isPassthrough) {
+            passthrough = new XRWebGLLayer(session, gl);
+            session.updatePassthrough(true); // パススルーを有効にする
+          }
+
+          // アニメーションループ
+          renderer.setAnimationLoop(() => {
+            if (passthrough) {
+              passthrough.update();
             }
-            try {
-                // XRセッションを開始
-                const session = await arScene.enterAR();
-                console.log('AR session started:', session);
-                // ボタンを非表示にする
-                arButton.style.display = 'none';
-            } catch (e) {
-                console.error('Failed to start AR session:', e);
-                alert('ARセッションの開始に失敗しました。このデバイスはARに対応していないか、または設定を確認してください。');
-            }
-        });
-    </script>
+            renderer.render(scene, camera);
+          });
+
+        } catch (error) {
+          console.error('An error occurred:', error);
+        }
+      } else {
+        console.warn('WebXR not supported in this browser.');
+      }
+    });
+  </script>
 </body>
 </html>

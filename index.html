@@ -1,128 +1,116 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>WebXR AR Experience</title>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebXR Starter for Meta Quest 3</title>
     <style>
-      body { margin: 0; }
-      canvas { display: block; }
+        body { margin: 0; overflow: hidden; }
+        #start-button {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            padding: 15px 30px;
+            font-size: 24px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            transition: background-color 0.3s;
+        }
+        #start-button:hover {
+            background-color: #45a049;
+        }
     </style>
-    <script async src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
-    <script async src="https://unpkg.com/three@0.149.0/examples/jsm/libs/stats.module.js"></script>
-    <script async src="https://unpkg.com/three@0.149.0/examples/jsm/webxr/ARButton.js"></script>
-  </head>
-  <body>
-    <script>
-      import * as THREE from 'https://unpkg.com/three@0.149.0/build/three.module.js';
-      import { ARButton } from 'https://unpkg.com/three@0.149.0/examples/jsm/webxr/ARButton.js';
-      
-      let container;
-      let camera, scene, renderer;
-      let controller;
-      
-      let reticle;
-      let hitTestSource = null;
-      let hitTestSourceRequested = false;
-      
-      init();
-      animate();
-      
-      function init() {
-      
-        container = document.createElement( 'div' );
-        document.body.appendChild( container );
-      
-        scene = new THREE.Scene();
-      
-        camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.01, 20 );
-      
-        const light = new THREE.HemisphereLight( 0xffffff, 0xbbbbff, 1 );
-        light.position.set( 0.5, 1, 0.25 );
-        scene.add( light );
-      
-        // Reticle
-        reticle = new THREE.Mesh(
-          new THREE.RingGeometry( 0.15, 0.2, 32 ).rotateX( - Math.PI / 2 ),
-          new THREE.MeshBasicMaterial( { color: 0xffffff } )
-        );
-        reticle.matrixAutoUpdate = false;
-        reticle.visible = false;
-        scene.add( reticle );
-      
-        renderer = new THREE.WebGLRenderer( { antialias: true, alpha: true } );
-        renderer.setPixelRatio( window.devicePixelRatio );
-        renderer.setSize( window.innerWidth, window.innerHeight );
-        renderer.xr.enabled = true;
-        container.appendChild( renderer.domElement );
-      
-        document.body.appendChild( ARButton.createButton( renderer, { requiredFeatures: [ 'hit-test' ] } ) );
-      
-        // Controller
-        controller = renderer.xr.getController( 0 );
-        controller.addEventListener( 'select', onSelect );
-        scene.add( controller );
-      
-        window.addEventListener( 'resize', onWindowResize );
-      
-      }
-      
-      function onSelect() {
-      
-        if ( reticle.visible ) {
-          const geometry = new THREE.BoxGeometry( 0.2, 0.2, 0.2 );
-          const material = new THREE.MeshNormalMaterial();
-          const mesh = new THREE.Mesh( geometry, material );
-          mesh.position.setFromMatrixPosition( reticle.matrix );
-          mesh.scale.y = Math.random() * 2 + 1;
-          scene.add( mesh );
-        }
-      
-      }
-      
-      function onWindowResize() {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize( window.innerWidth, window.innerHeight );
-      }
-      
-      function animate() {
-        renderer.setAnimationLoop( render );
-      }
-      
-      function render( timestamp, frame ) {
-      
-        if ( frame ) {
-          const referenceSpace = renderer.xr.getReferenceSpace();
-          const session = renderer.xr.getSession();
-      
-          if ( hitTestSourceRequested === false ) {
-            session.requestReferenceSpace( 'viewer' ).then( ( referenceSpace ) => {
-              session.requestHitTestSource( { space: referenceSpace } ).then( ( source ) => {
-                hitTestSource = source;
-              } );
-            } );
-            session.addEventListener( 'end', () => {
-              hitTestSourceRequested = false;
-              hitTestSource = null;
-            } );
-            hitTestSourceRequested = true;
-          }
-      
-          if ( hitTestSource ) {
-            const hitTestResults = frame.getHitTestResults( hitTestSource );
-            if ( hitTestResults.length ) {
-              const hit = hitTestResults[ 0 ];
-              reticle.visible = true;
-              reticle.matrix.fromArray( hit.getPose( referenceSpace ).transform.matrix );
-            } else {
-              reticle.visible = false;
+</head>
+<body>
+    <button id="start-button">VRを開始</button>
+    <canvas id="xr-canvas"></canvas>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
             }
-          }
         }
-      
-        renderer.render( scene, camera );
-      
-      }
     </script>
-  </body>
+    <script type="module">
+        import * as THREE from 'three';
+        import { XRButton } from 'three/addons/webxr/XRButton.js';
+
+        const startButton = document.getElementById('start-button');
+        const canvas = document.getElementById('xr-canvas');
+
+        let scene, camera, renderer, xrButton;
+
+        function init() {
+            // シーン、カメラ、レンダラーのセットアップ
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true, canvas: canvas });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
+            renderer.xr.setReferenceSpaceType('local-floor');
+
+            // 3Dオブジェクトを追加
+            const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+            const material = new THREE.MeshNormalMaterial();
+            const cube = new THREE.Mesh(geometry, material);
+            scene.add(cube);
+            cube.position.set(0, 1.5, -2); // ユーザーの目の前に配置
+
+            // ライトを追加
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+
+            // アニメーションループを開始
+            renderer.setAnimationLoop(animate);
+
+            // ウィンドウサイズ変更時の処理
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onStartButtonClick() {
+            // XRButtonを作成して、手動でクリックをシミュレート
+            if (!xrButton) {
+                xrButton = XRButton.createButton(renderer, 'immersive-vr');
+                // DOMに追加することで、WebXRがセッションを開始できる状態にする
+                document.body.appendChild(xrButton);
+            }
+            
+            // XRセッションをプログラムで開始
+            xrButton.click();
+            startButton.style.display = 'none'; // スタートボタンを非表示にする
+        }
+
+        function animate(timestamp, frame) {
+            // オブジェクトを回転させる例
+            // if (scene && scene.children[1]) { // キューブが存在するか確認
+            //     const cube = scene.children[1];
+            //     cube.rotation.x += 0.01;
+            //     cube.rotation.y += 0.01;
+            // }
+
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // イベントリスナーを追加
+        startButton.addEventListener('click', onStartButtonClick);
+
+        // ページの初期化
+        init();
+    </script>
+</body>
 </html>

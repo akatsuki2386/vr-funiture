@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebXR Starter for Meta Quest 3</title>
+    <title>WebXR Starter</title>
     <style>
         body { margin: 0; overflow: hidden; }
         #overlay {
@@ -18,7 +18,7 @@
             background-color: rgba(0, 0, 0, 0.7);
             z-index: 1000;
         }
-        #start-button {
+        #xr-button {
             padding: 15px 30px;
             font-size: 24px;
             cursor: pointer;
@@ -29,15 +29,18 @@
             font-family: Arial, sans-serif;
             transition: background-color 0.3s;
         }
-        #start-button:hover {
+        #xr-button:hover {
             background-color: #45a049;
+        }
+        /* XRButtonが生成するデフォルトのスタイルを上書き */
+        .xr-button {
+            position: relative !important;
         }
     </style>
 </head>
 <body>
     <div id="overlay">
-        <button id="start-button">VRを開始</button>
-    </div>
+        </div>
     <canvas id="xr-canvas"></canvas>
 
     <script type="importmap">
@@ -53,7 +56,6 @@
         import { XRButton } from 'three/addons/webxr/XRButton.js';
 
         const overlay = document.getElementById('overlay');
-        const startButton = document.getElementById('start-button');
         const canvas = document.getElementById('xr-canvas');
 
         let scene, camera, renderer, cube;
@@ -66,7 +68,6 @@
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.xr.enabled = true;
-            renderer.xr.setReferenceSpaceType('local-floor');
 
             // 3Dオブジェクトを追加
             const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
@@ -75,36 +76,27 @@
             scene.add(cube);
             cube.position.set(0, 1.5, -2); // ユーザーの目の前に配置
 
-            // ライトを追加
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-            scene.add(ambientLight);
+            // XRButtonを動的に作成し、オーバーレイに追加
+            const xrButtonElement = XRButton.createButton(renderer, 'immersive-vr');
+            xrButtonElement.id = 'xr-button';
+            overlay.appendChild(xrButtonElement);
 
-            // ウィンドウサイズ変更時の処理
+            // アニメーションループを管理するリスナー
+            renderer.xr.addEventListener('sessionstart', () => {
+                overlay.style.display = 'none'; // VRセッション開始時にオーバーレイを非表示に
+                renderer.setAnimationLoop(animate);
+            });
+
+            renderer.xr.addEventListener('sessionend', () => {
+                overlay.style.display = 'flex'; // VRセッション終了時にオーバーレイを再表示
+                renderer.setAnimationLoop(null);
+            });
+
             window.addEventListener('resize', onWindowResize);
-
-            // **XRButtonを最初から作成し、既存のボタンに置き換える**
-            if (navigator.xr) {
-                // XRButton.createButtonはWebXRセッションを開始するためのDOM要素を返します。
-                const xrButtonElement = XRButton.createButton(renderer, 'immersive-vr');
-                xrButtonElement.id = 'start-button'; // スタイルを適用するためIDを設定
-                
-                // 既存のボタンを新しいXRボタンに置き換える
-                overlay.replaceChild(xrButtonElement, startButton);
-
-                // XRセッションが終了したときにオーバーレイを再表示する
-                renderer.xr.addEventListener('sessionend', () => {
-                    overlay.style.display = 'flex';
-                });
-            } else {
-                // WebXRがサポートされていない場合
-                startButton.textContent = 'WebXRはサポートされていません';
-                startButton.disabled = true;
-                startButton.style.backgroundColor = '#888';
-            }
         }
 
         function animate(timestamp, frame) {
-            // オブジェクトを回転させる例
+            // アニメーションはXRセッションが開始された後にのみ実行
             if (cube) {
                 cube.rotation.x += 0.01;
                 cube.rotation.y += 0.01;
@@ -118,11 +110,7 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        // 初期化処理を実行
         init();
-
-        // アニメーションループを開始
-        renderer.setAnimationLoop(animate);
     </script>
 </body>
 </html>

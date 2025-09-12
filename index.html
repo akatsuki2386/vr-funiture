@@ -4,13 +4,26 @@
   <title>WebXR Pass-through Cube</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <style>
-    /* Fullscreen setup for better VR experience */
     body { margin: 0; overflow: hidden; }
+    #enter-vr-button {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 999;
+      padding: 15px 30px;
+      font-size: 1.2em;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
   <a-scene
-    vr-mode-ui="enabled: true"
+    vr-mode-ui="enabled: false"
     renderer="colorManagement: true; physicallyCorrectLights: true"
     webxr="requiredFeatures: local-floor, camera-access;"
     ar-mode>
@@ -23,6 +36,22 @@
     <a-light type="directional" position="-1 1 1" intensity="0.5"></a-light>
 
   </a-scene>
+
+  <button id="enter-vr-button">VR/ARで開始</button>
+
+  <script>
+    document.getElementById('enter-vr-button').addEventListener('click', function() {
+      // Get the A-Frame scene element
+      const sceneEl = document.querySelector('a-scene');
+      // Enter the AR mode programmatically
+      if (sceneEl.hasLoaded) {
+        sceneEl.enterVR();
+      } else {
+        sceneEl.addEventListener('loaded', () => {
+          sceneEl.enterVR();
+        });
+      }
+    });
+  </script>
 </body>
 </html>
-

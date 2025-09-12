@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebXR Passthrough AR Demo</title>
+    <title>WebXR Passthrough AR Demo (Single File)</title>
     <style>
         body { margin: 0; overflow: hidden; }
         #ar-button {
@@ -12,6 +12,7 @@
             padding: 10px 20px;
             font-size: 16px;
             cursor: pointer;
+            z-index: 1000;
         }
     </style>
 </head>
@@ -24,6 +25,100 @@
             }
         }
     </script>
-    <script type="module" src="./main.js"></script>
+    <script type="module">
+        import * as THREE from 'three';
+
+        let camera, scene, renderer;
+        let xrSession = null;
+        let xrReferenceSpace = null;
+        let cube;
+
+        const arButton = document.getElementById('ar-button');
+
+        // WebXRのサポートを確認
+        async function checkXRSupport() {
+            if (navigator.xr) {
+                // 'immersive-ar'セッションがサポートされているかチェック
+                const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
+                if (isSupported) {
+                    arButton.addEventListener('click', onARButtonClick);
+                    arButton.textContent = 'Start AR';
+                } else {
+                    arButton.textContent = 'AR Not Supported';
+                }
+            } else {
+                arButton.textContent = 'WebXR Not Available';
+            }
+        }
+
+        async function onARButtonClick() {
+            if (xrSession) {
+                await xrSession.end();
+            } else {
+                try {
+                    // Immersive ARセッションを開始
+                    xrSession = await navigator.xr.requestSession('immersive-ar', {
+                        requiredFeatures: ['local-floor'] // 'local-floor'で床面の位置を基準にAR表示
+                    });
+                    xrSession.addEventListener('end', onSessionEnded);
+
+                    initScene();
+                    // WebXRセッションの開始
+                    renderer.xr.setSession(xrSession);
+                } catch (e) {
+                    console.error('Failed to start XR session:', e);
+                }
+            }
+        }
+
+        function initScene() {
+            // Three.jsの初期化
+            scene = new THREE.Scene();
+            
+            // WebGLレンダラーを作成
+            renderer = new THREE.WebGLRenderer({
+                alpha: true, // パススルー映像を透過させる
+                antialias: true
+            });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true; // XRを有効化
+            document.body.appendChild(renderer.domElement);
+
+            // ダミーカメラ
+            camera = new THREE.PerspectiveCamera();
+
+            // ARオブジェクト（立方体）を作成
+            const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2); // 20cmの立方体
+            const material = new THREE.MeshNormalMaterial();
+            cube = new THREE.Mesh(geometry, material);
+            cube.position.set(0, 0.5, -1); // ユーザーから1m前方の床面から50cm上に配置
+            scene.add(cube);
+
+            // XR参照空間の設定
+            renderer.xr.getReferenceSpace('local-floor').then((refSpace) => {
+                xrReferenceSpace = refSpace;
+                renderer.setAnimationLoop(onAnimationFrame);
+            });
+        }
+
+        function onAnimationFrame() {
+            if (cube) {
+                cube.rotation.y += 0.01;
+            }
+            renderer.render(scene, camera);
+        }
+
+        function onSessionEnded() {
+            xrSession = null;
+            if (renderer) {
+                document.body.removeChild(renderer.domElement);
+                renderer.setAnimationLoop(null);
+            }
+        }
+
+        // 起動時にWebXRのサポートを確認
+        checkXRSupport();
+    </script>
 </body>
 </html>

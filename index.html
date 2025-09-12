@@ -6,12 +6,19 @@
     <title>WebXR Starter for Meta Quest 3</title>
     <style>
         body { margin: 0; overflow: hidden; }
-        #start-button {
+        #overlay {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 100;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+        }
+        #start-button {
             padding: 15px 30px;
             font-size: 24px;
             cursor: pointer;
@@ -28,7 +35,9 @@
     </style>
 </head>
 <body>
-    <button id="start-button">VRを開始</button>
+    <div id="overlay">
+        <button id="start-button">VRを開始</button>
+    </div>
     <canvas id="xr-canvas"></canvas>
 
     <script type="importmap">
@@ -43,10 +52,11 @@
         import * as THREE from 'three';
         import { XRButton } from 'three/addons/webxr/XRButton.js';
 
+        const overlay = document.getElementById('overlay');
         const startButton = document.getElementById('start-button');
         const canvas = document.getElementById('xr-canvas');
 
-        let scene, camera, renderer, xrButton;
+        let scene, camera, renderer, cube;
 
         function init() {
             // シーン、カメラ、レンダラーのセットアップ
@@ -61,7 +71,7 @@
             // 3Dオブジェクトを追加
             const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
             const material = new THREE.MeshNormalMaterial();
-            const cube = new THREE.Mesh(geometry, material);
+            cube = new THREE.Mesh(geometry, material);
             scene.add(cube);
             cube.position.set(0, 1.5, -2); // ユーザーの目の前に配置
 
@@ -69,34 +79,36 @@
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
             scene.add(ambientLight);
 
-            // アニメーションループを開始
-            renderer.setAnimationLoop(animate);
-
             // ウィンドウサイズ変更時の処理
             window.addEventListener('resize', onWindowResize);
-        }
 
-        function onStartButtonClick() {
-            // XRButtonを作成して、手動でクリックをシミュレート
-            if (!xrButton) {
-                xrButton = XRButton.createButton(renderer, 'immersive-vr');
-                // DOMに追加することで、WebXRがセッションを開始できる状態にする
-                document.body.appendChild(xrButton);
+            // **XRButtonを最初から作成し、既存のボタンに置き換える**
+            if (navigator.xr) {
+                // XRButton.createButtonはWebXRセッションを開始するためのDOM要素を返します。
+                const xrButtonElement = XRButton.createButton(renderer, 'immersive-vr');
+                xrButtonElement.id = 'start-button'; // スタイルを適用するためIDを設定
+                
+                // 既存のボタンを新しいXRボタンに置き換える
+                overlay.replaceChild(xrButtonElement, startButton);
+
+                // XRセッションが終了したときにオーバーレイを再表示する
+                renderer.xr.addEventListener('sessionend', () => {
+                    overlay.style.display = 'flex';
+                });
+            } else {
+                // WebXRがサポートされていない場合
+                startButton.textContent = 'WebXRはサポートされていません';
+                startButton.disabled = true;
+                startButton.style.backgroundColor = '#888';
             }
-            
-            // XRセッションをプログラムで開始
-            xrButton.click();
-            startButton.style.display = 'none'; // スタートボタンを非表示にする
         }
 
         function animate(timestamp, frame) {
             // オブジェクトを回転させる例
-            // if (scene && scene.children[1]) { // キューブが存在するか確認
-            //     const cube = scene.children[1];
-            //     cube.rotation.x += 0.01;
-            //     cube.rotation.y += 0.01;
-            // }
-
+            if (cube) {
+                cube.rotation.x += 0.01;
+                cube.rotation.y += 0.01;
+            }
             renderer.render(scene, camera);
         }
 
@@ -106,11 +118,11 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        // イベントリスナーを追加
-        startButton.addEventListener('click', onStartButtonClick);
-
-        // ページの初期化
+        // 初期化処理を実行
         init();
+
+        // アニメーションループを開始
+        renderer.setAnimationLoop(animate);
     </script>
 </body>
 </html>

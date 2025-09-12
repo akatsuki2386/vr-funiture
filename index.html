@@ -1,67 +1,30 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>WebXR AR with Button</title>
+<head>
+    <title>WebXR AR for Smart Glasses</title>
     <style>
-      body {
-        margin: 0;
-        background-color: black;
-      }
-      #ar-button {
-        position: fixed;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        padding: 15px 30px;
-        font-size: 1.2rem;
-        font-family: sans-serif;
-        color: white;
-        background-color: #4CAF50;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        z-index: 1000;
-        display: block; /* ボタンを表示 */
-      }
-      #ar-container {
-        display: none; /* 初期状態ではARコンテナを非表示 */
-      }
+        body { margin: 0; }
+        canvas { display: block; }
+        #ar-button {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            font-family: sans-serif;
+            color: white;
+            background-color: #4CAF50;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            z-index: 1000;
+            display: none; /* 初期状態ではボタンを非表示 */
+        }
     </style>
-  </head>
-  <body>
+</head>
+<body>
     <button id="ar-button">START AR</button>
-    <div id="ar-container">
-      <a-scene
-        id="ar-scene"
-        vr-mode-ui="enabled: false"
-        arjs="sourceType: webcam; debugUIEnabled: false;"
-        embedded
-      >
-        <a-entity
-          id="cube"
-          geometry="primitive: box"
-          material="color: #4CC3D9"
-          position="0 0 -3"
-          scale="0.5 0.5 0.5"
-        ></a-entity>
-        <a-marker-camera preset="hiro"></a-marker-camera>
-      </a-scene>
-    </div>
-    <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        const arButton = document.getElementById("ar-button");
-        const arContainer = document.getElementById("ar-container");
-        const arScene = document.getElementById("ar-scene");
-
-        arButton.addEventListener("click", function () {
-          // ボタンを非表示にする
-          arButton.style.display = "none";
-          // ARコンテナを表示する
-          arContainer.style.display = "block";
-          // A-Frameのシーンを起動
-          arScene.play();
-        });
-      });
-    </script>
-  </body>
+    <script src="main.js"></script>
+</body>
 </html>

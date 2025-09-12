@@ -1,116 +1,67 @@
 <!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebXR Starter</title>
+<html>
+  <head>
+    <title>WebXR AR with Button</title>
     <style>
-        body { margin: 0; overflow: hidden; }
-        #overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: rgba(0, 0, 0, 0.7);
-            z-index: 1000;
-        }
-        #xr-button {
-            padding: 15px 30px;
-            font-size: 24px;
-            cursor: pointer;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-family: Arial, sans-serif;
-            transition: background-color 0.3s;
-        }
-        #xr-button:hover {
-            background-color: #45a049;
-        }
-        /* XRButtonが生成するデフォルトのスタイルを上書き */
-        .xr-button {
-            position: relative !important;
-        }
+      body {
+        margin: 0;
+        background-color: black;
+      }
+      #ar-button {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 15px 30px;
+        font-size: 1.2rem;
+        font-family: sans-serif;
+        color: white;
+        background-color: #4CAF50;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        z-index: 1000;
+        display: block; /* ボタンを表示 */
+      }
+      #ar-container {
+        display: none; /* 初期状態ではARコンテナを非表示 */
+      }
     </style>
-</head>
-<body>
-    <div id="overlay">
-        </div>
-    <canvas id="xr-canvas"></canvas>
+  </head>
+  <body>
+    <button id="ar-button">START AR</button>
+    <div id="ar-container">
+      <a-scene
+        id="ar-scene"
+        vr-mode-ui="enabled: false"
+        arjs="sourceType: webcam; debugUIEnabled: false;"
+        embedded
+      >
+        <a-entity
+          id="cube"
+          geometry="primitive: box"
+          material="color: #4CC3D9"
+          position="0 0 -3"
+          scale="0.5 0.5 0.5"
+        ></a-entity>
+        <a-marker-camera preset="hiro"></a-marker-camera>
+      </a-scene>
+    </div>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const arButton = document.getElementById("ar-button");
+        const arContainer = document.getElementById("ar-container");
+        const arScene = document.getElementById("ar-scene");
 
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
-            }
-        }
+        arButton.addEventListener("click", function () {
+          // ボタンを非表示にする
+          arButton.style.display = "none";
+          // ARコンテナを表示する
+          arContainer.style.display = "block";
+          // A-Frameのシーンを起動
+          arScene.play();
+        });
+      });
     </script>
-    <script type="module">
-        import * as THREE from 'three';
-        import { XRButton } from 'three/addons/webxr/XRButton.js';
-
-        const overlay = document.getElementById('overlay');
-        const canvas = document.getElementById('xr-canvas');
-
-        let scene, camera, renderer, cube;
-
-        function init() {
-            // シーン、カメラ、レンダラーのセットアップ
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            renderer = new THREE.WebGLRenderer({ antialias: true, canvas: canvas });
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true;
-
-            // 3Dオブジェクトを追加
-            const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-            const material = new THREE.MeshNormalMaterial();
-            cube = new THREE.Mesh(geometry, material);
-            scene.add(cube);
-            cube.position.set(0, 1.5, -2); // ユーザーの目の前に配置
-
-            // XRButtonを動的に作成し、オーバーレイに追加
-            const xrButtonElement = XRButton.createButton(renderer, 'immersive-vr');
-            xrButtonElement.id = 'xr-button';
-            overlay.appendChild(xrButtonElement);
-
-            // アニメーションループを管理するリスナー
-            renderer.xr.addEventListener('sessionstart', () => {
-                overlay.style.display = 'none'; // VRセッション開始時にオーバーレイを非表示に
-                renderer.setAnimationLoop(animate);
-            });
-
-            renderer.xr.addEventListener('sessionend', () => {
-                overlay.style.display = 'flex'; // VRセッション終了時にオーバーレイを再表示
-                renderer.setAnimationLoop(null);
-            });
-
-            window.addEventListener('resize', onWindowResize);
-        }
-
-        function animate(timestamp, frame) {
-            // アニメーションはXRセッションが開始された後にのみ実行
-            if (cube) {
-                cube.rotation.x += 0.01;
-                cube.rotation.y += 0.01;
-            }
-            renderer.render(scene, camera);
-        }
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        init();
-    </script>
-</body>
+  </body>
 </html>

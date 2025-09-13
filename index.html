@@ -1,111 +1,81 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Meta Quest 3 AR Example (Single File)</title>
-    <meta charset="UTF-8">
-    <style>
-        body { margin: 0; overflow: hidden; }
-        #ar-button {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 10px 20px;
-            font-size: 1.2em;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            z-index: 1000;
-        }
-    </style>
+    <title>WebXR AR Experience</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
 </head>
 <body>
-    <button id="ar-button">Start AR</button>
-    <script type="module">
-        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.module.js';
-        import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.146.0/examples/jsm/webxr/ARButton.js';
+    <a-scene 
+        webxr="requiredFeatures: hit-test,local-floor;"
+        vr-mode-ui="enabled: false"
+        ar-hit-test="target-model: #box-model;"
+        gltf-model="draco: true"
+    >
+        <a-assets>
+            <a-asset-item id="box-model" src="https://cdn.glitch.global/654c6c58-29fe-455b-b519-c6e75a6c0260/robot.glb"></a-asset-item>
+        </a-assets>
 
-        let container;
-        let camera, scene, renderer;
-        let controller;
-        let cube;
+        <a-entity camera position="0 1.6 0"></a-entity>
+        <a-light type="ambient" color="#FFF"></a-light>
+        <a-light type="directional" position="1 1 1" color="#FFF"></a-light>
 
-        init();
-        animate();
+        <a-entity 
+            id="ar-object" 
+            gltf-model="#box-model" 
+            scale="0.5 0.5 0.5" 
+            visible="false"
+            animation-mixer
+        ></a-entity>
+        
+        <a-entity id="placement-ui">
+            <a-entity 
+                geometry="primitive: circle; radius: 0.1;" 
+                material="color: #66CCFF; opacity: 0.8;" 
+                position="0 0 -1" 
+                rotation="90 0 0" 
+                scale="0.05 0.05 0.05"
+            ></a-entity>
+            <a-entity text="value: Tap to place object; color: #FFF; align: center;" position="0 0.1 -1" scale="0.2 0.2 0.2"></a-entity>
+        </a-entity>
 
-        function init() {
-            container = document.createElement('div');
-            document.body.appendChild(container);
+        <a-entity id="instruction-text" 
+            text="value: Move your device to find a surface.; color: #FFF; align: center;" 
+            position="0 0 -2" 
+            scale="0.5 0.5 0.5"
+            visible="true"
+        ></a-entity>
+    </a-scene>
 
-            scene = new THREE.Scene();
+    <script>
+        const sceneEl = document.querySelector('a-scene');
+        const arObject = document.getElementById('ar-object');
+        const instructionText = document.getElementById('instruction-text');
+        
+        // ユーザーがタップしたときにオブジェクトを配置
+        sceneEl.addEventListener('click', (event) => {
+            const hitTestResult = sceneEl.components['ar-hit-test'].data.hitTestResult;
+            if (hitTestResult) {
+                const matrix = hitTestResult.transform.matrix;
+                const position = new THREE.Vector3().setFromMatrixPosition(matrix);
+                
+                arObject.setAttribute('position', position);
+                arObject.setAttribute('visible', true);
+                
+                // UIと指示を非表示にする
+                document.getElementById('placement-ui').setAttribute('visible', 'false');
+                instructionText.setAttribute('visible', 'false');
+            }
+        });
 
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-
-            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-            light.position.set(0.5, 1, 0.25);
-            scene.add(light);
-
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true;
-            container.appendChild(renderer.domElement);
-
-            const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-            const material = new THREE.MeshNormalMaterial();
-            cube = new THREE.Mesh(geometry, material);
-            
-            // WebXRセッションが開始されたらキューブを配置
-            renderer.xr.addEventListener('sessionstart', () => {
-                // カメラの正面にキューブを配置
-                const matrix = new THREE.Matrix4().compose(
-                    new THREE.Vector3(0, 0, -0.5),
-                    new THREE.Quaternion(),
-                    new THREE.Vector3(1, 1, 1)
-                );
-                cube.applyMatrix4(matrix);
-                scene.add(cube);
-            });
-
-            // ARボタンの設定
-            document.body.appendChild(ARButton.createButton(renderer, { 
-                requiredFeatures: ['hit-test', 'local-floor'],
-                optionalFeatures: ['dom-overlay']
-            }));
-
-            // ARセッション内のコントローラーを取得
-            controller = renderer.xr.getController(0);
-            controller.addEventListener('select', onSelect);
-            scene.add(controller);
-            
-            window.addEventListener('resize', onWindowResize);
-        }
-
-        function onSelect() {
-            // タップやトリガーの操作時に何か処理を行う
-            console.log("Controller selected!");
-            // 例: 新しいキューブを生成して配置
-            const newCube = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), new THREE.MeshNormalMaterial());
-            newCube.position.setFromMatrixPosition(controller.matrixWorld);
-            newCube.quaternion.setFromRotationMatrix(controller.matrixWorld);
-            scene.add(newCube);
-        }
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        function animate() {
-            renderer.setAnimationLoop(render);
-        }
-
-        function render() {
-            renderer.render(scene, camera);
-        }
+        // ARセッションが開始されたときにUIを表示
+        sceneEl.addEventListener('enter-vr', (event) => {
+            if (sceneEl.is('ar-mode')) {
+                document.getElementById('placement-ui').setAttribute('visible', 'true');
+            }
+        });
     </script>
 </body>
 </html>

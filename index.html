@@ -1,224 +1,171 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebXR AR with Dual Controllers, Haptics & Hand Tracking</title>
-    <style>
-        body { margin: 0; overflow: hidden; }
-        #ar-button {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-            z-index: 1000;
-        }
-    </style>
+    <title>WebXR AR with Hand Tracking</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #ar-button {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 1000;
+        }
+    </style>
 </head>
 <body>
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
-                "three/addons/": "https://cdn.jsdelivr.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
-            }
-        }
-    </script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+            }
+        }
+    </script>
 
-    <script type="module">
-        import * as THREE from 'three';
-        import { ARButton } from 'three/addons/webxr/ARButton.js';
-        import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
-        import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
+    <script type="module">
+        import * as THREE from 'three';
+        import { ARButton } from 'three/addons/webxr/ARButton.js';
+        import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 
-        let camera, scene, renderer;
-        let controller1, controller2;
-        let controllerGrip1, controllerGrip2;
-        let hand1, hand2; // Variables for hand controllers
-        let reticle;
-        let hitTestSource = null;
-        let hitTestSourceRequested = false;
-        let lasers = [];
+        let camera, scene, renderer;
+        let controller1, controller2;
+        let reticle;
+        let hitTestSource = null;
+        let hitTestSourceRequested = false;
 
-        init();
-        animate();
+        // 手のモデルとジェスチャーのための変数
+        let hand1, hand2;
+        let pinching = false;
 
-        function init() {
-            const container = document.createElement('div');
-            document.body.appendChild(container);
+        init();
+        animate();
 
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+        function init() {
+            const container = document.createElement('div');
+            document.body.appendChild(container);
 
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true;
-            container.appendChild(renderer.domElement);
-            
-            // Request the 'hand-tracking' feature along with 'hit-test'
-            const arButton = ARButton.createButton(renderer, { 
-                requiredFeatures: ['hit-test', 'hand-tracking'] 
-            });
-            document.body.appendChild(arButton);
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
-            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-            light.position.set(0.5, 1, 0.25);
-            scene.add(light);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
+            container.appendChild(renderer.domElement);
 
-            // Setup controllers for both hands and hand tracking
-            controller1 = renderer.xr.getController(0);
-            controller1.addEventListener('selectstart', onSelectStart);
-            scene.add(controller1);
+            // `hand-tracking`をrequiredFeaturesに追加
+            const arButton = ARButton.createButton(renderer, { requiredFeatures: ['hit-test', 'hand-tracking'] });
+            document.body.appendChild(arButton);
 
-            controller2 = renderer.xr.getController(1);
-            controller2.addEventListener('selectstart', onSelectStart);
-            scene.add(controller2);
+            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+            light.position.set(0.5, 1, 0.25);
+            scene.add(light);
 
-            const controllerModelFactory = new XRControllerModelFactory();
-            const handModelFactory = new XRHandModelFactory();
+            // コントローラーの代わりに手の入力を取得
+            controller1 = renderer.xr.getController(0);
+            scene.add(controller1);
 
-            controllerGrip1 = renderer.xr.getControllerGrip(0);
-            controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
-            scene.add(controllerGrip1);
+            controller2 = renderer.xr.getController(1);
+            scene.add(controller2);
 
-            controllerGrip2 = renderer.xr.getControllerGrip(1);
-            controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
-            scene.add(controllerGrip2);
-            
-            // Hand tracking setup
-            hand1 = renderer.xr.getHand(0);
-            hand1.add(handModelFactory.createHandModel(hand1));
-            scene.add(hand1);
+            // 手のモデルを読み込む
+            const handModelFactory = new XRHandModelFactory();
 
-            hand2 = renderer.xr.getHand(1);
-            hand2.add(handModelFactory.createHandModel(hand2));
-            scene.add(hand2);
+            hand1 = renderer.xr.getHand(0);
+            hand1.add(handModelFactory.createHandModel(hand1, "mesh"));
+            hand1.addEventListener('pinchend', onPinchEnd);
+            scene.add(hand1);
 
-            // Create lasers for controllers
-            const laserGeometry = new THREE.CylinderGeometry(0.002, 0.002, 1, 32).rotateX(Math.PI / 2);
-            const laserMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.7 });
-            
-            const laser1 = new THREE.Mesh(laserGeometry, laserMaterial);
-            laser1.position.set(0, 0, -0.5);
-            controller1.add(laser1);
-            lasers.push(laser1);
+            hand2 = renderer.xr.getHand(1);
+            hand2.add(handModelFactory.createHandModel(hand2, "mesh"));
+            hand2.addEventListener('pinchend', onPinchEnd);
+            scene.add(hand2);
 
-            const laser2 = new THREE.Mesh(laserGeometry, laserMaterial);
-            laser2.position.set(0, 0, -0.5);
-            controller2.add(laser2);
-            lasers.push(laser2);
+            // Reticle（リング）の作成
+            const reticleGeometry = new THREE.RingGeometry(0.1, 0.12, 32).rotateX(-Math.PI / 2);
+            const reticleMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            reticle = new THREE.Mesh(reticleGeometry, reticleMaterial);
+            reticle.matrixAutoUpdate = false;
+            reticle.visible = false;
+            scene.add(reticle);
 
-            const reticleGeometry = new THREE.RingGeometry(0.1, 0.12, 32).rotateX(-Math.PI / 2);
-            const reticleMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-            reticle = new THREE.Mesh(reticleGeometry, reticleMaterial);
-            reticle.matrixAutoUpdate = false;
-            reticle.visible = false;
-            scene.add(reticle);
+            window.addEventListener('resize', onWindowResize, false);
+        }
+        
+        // ピンチ操作の終了時に実行
+        function onPinchEnd(event) {
+            const hand = event.target;
+            // 指先の位置から光線を投射する
+            const indexTip = hand.joints['index-finger-tip'];
+            const thumbTip = hand.joints['thumb-finger-tip'];
 
-            window.addEventListener('resize', onWindowResize, false);
-        }
+            if (!indexTip || !thumbTip) return;
 
-        function onSelectStart(event) {
-            const controller = event.target;
-            if (reticle.visible) {
-                const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-                const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-                const cube = new THREE.Mesh(geometry, material);
-                
-                cube.position.setFromMatrixPosition(reticle.matrix);
-                scene.add(cube);
-            }
-        }
+            const raycaster = new THREE.Raycaster();
+            const startPos = new THREE.Vector3().setFromMatrixPosition(indexTip.matrixWorld);
+            const endPos = new THREE.Vector3().setFromMatrixPosition(thumbTip.matrixWorld);
+            const direction = new THREE.Vector3().subVectors(endPos, startPos).normalize();
+            
+            raycaster.set(startPos, direction);
 
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
+            const hitTestResults = renderer.xr.getSession().requestHitTest(
+                raycaster.ray,
+                renderer.xr.getReferenceSpace()
+            );
 
-        function animate() {
-            renderer.setAnimationLoop(render);
-        }
+            hitTestResults.then(results => {
+                if (results.length > 0) {
+                    const hit = results[0];
+                    const pose = hit.getPose(renderer.xr.getReferenceSpace());
+                    const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+                    const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+                    const cube = new THREE.Mesh(geometry, material);
+                    cube.position.setFromMatrixPosition(pose.transform.matrix);
+                    scene.add(cube);
+                }
+            });
+        }
 
-        function render(timestamp, frame) {
-            if (frame) {
-                const session = renderer.xr.getSession();
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
 
-                // Check for input source types (hands or controllers)
-                for (const source of session.inputSources) {
-                    if (source.hand) {
-                        // Hide the controller models and lasers if hand tracking is active
-                        controllerGrip1.visible = false;
-                        controllerGrip2.visible = false;
-                        lasers.forEach(laser => laser.visible = false);
-                        break; 
-                    } else {
-                        // Show controllers if no hands are detected
-                        controllerGrip1.visible = true;
-                        controllerGrip2.visible = true;
-                        lasers.forEach(laser => laser.visible = true);
-                    }
-                }
+        function animate() {
+            renderer.setAnimationLoop(render);
+        }
 
-                if (!hitTestSourceRequested) {
-                    session.requestHitTestSource({ space: session.viewerSpace })
-                        .then(source => {
-                            hitTestSource = source;
-                        });
-                    hitTestSourceRequested = true;
-                }
+        function render(timestamp, frame) {
+            if (frame) {
+                if (!hitTestSourceRequested) {
+                    const session = renderer.xr.getSession();
+                    session.requestHitTestSource({ space: session.viewerSpace })
+                        .then(source => {
+                            hitTestSource = source;
+                        });
+                    hitTestSourceRequested = true;
+                }
 
-                if (hitTestSource) {
-                    // Update hit test based on controllers
-                    const raycaster1 = new THREE.Raycaster();
-                    raycaster1.setFromXRController(controller1, renderer.xr.getReferenceSpace());
-                    const hitTestResults1 = renderer.xr.getSession().requestHitTest(raycaster1.ray, renderer.xr.getReferenceSpace());
-
-                    const raycaster2 = new THREE.Raycaster();
-                    raycaster2.setFromXRController(controller2, renderer.xr.getReferenceSpace());
-                    const hitTestResults2 = renderer.xr.getSession().requestHitTest(raycaster2.ray, renderer.xr.getReferenceSpace());
-                    
-                    let controllerHit = null;
-
-                    if (hitTestResults1.length > 0) {
-                        controllerHit = hitTestResults1[0];
-                        const controllerPose = controllerHit.getPose(renderer.xr.getReferenceSpace());
-                        lasers[0].scale.y = controllerPose.transform.position.distanceTo(controller1.position);
-
-                        const session = renderer.xr.getSession();
-                        if (session.inputSources[0] && session.inputSources[0].hapticActuators[0]) {
-                            session.inputSources[0].hapticActuators[0].pulse(0.5, 50);
-                        }
-                    } else {
-                        lasers[0].scale.y = 10;
-                    }
-
-                    if (hitTestResults2.length > 0) {
-                        controllerHit = hitTestResults2[0];
-                        const controllerPose = controllerHit.getPose(renderer.xr.getReferenceSpace());
-                        lasers[1].scale.y = controllerPose.transform.position.distanceTo(controller2.position);
-                        
-                        const session = renderer.xr.getSession();
-                        if (session.inputSources[1] && session.inputSources[1].hapticActuators[0]) {
-                            session.inputSources[1].hapticActuators[0].pulse(0.5, 50);
-                        }
-                    } else {
-                        lasers[1].scale.y = 10;
-                    }
-
-                    if (controllerHit) {
-                        reticle.visible = true;
-                        const controllerPose = controllerHit.getPose(renderer.xr.getReferenceSpace());
-                        reticle.matrix.fromArray(controllerPose.transform.matrix);
-                    } else {
-                        reticle.visible = false;
-                    }
-                }
-            }
-            renderer.render(scene, camera);
-        }
-    </script>
+                if (hitTestSource) {
+                    const hitTestResults = frame.getHitTestResults(hitTestSource);
+                    if (hitTestResults.length > 0) {
+                        const hit = hitTestResults[0];
+                        const pose = hit.getPose(renderer.xr.getReferenceSpace());
+                        
+                        reticle.visible = true;
+                        reticle.matrix.fromArray(pose.transform.matrix);
+                    } else {
+                        reticle.visible = false;
+                    }
+                }
+            }
+            renderer.render(scene, camera);
+        }
+    </script>
 </body>
 </html>

@@ -29,25 +29,25 @@
             color: white;
             text-shadow: 0 2px 8px rgba(0,0,0,0.5);
         }
-        #ARButton {
-            color: white !important;
-            background-color: rgba(255, 255, 255, 0.2) !important;
-            border: 1px solid rgba(255, 255, 255, 0.3) !important;
-            backdrop-filter: blur(10px) !important;
-            border-radius: 9999px !important;
-            font-size: 16px !important;
-            font-weight: bold !important;
-            padding: 14px 24px !important;
-            min-width: 220px !important;
-            box-shadow: none !important;
-            opacity: 1 !important;
-            position: absolute !important;
-            bottom: 15% !important;
-            left: 50% !important;
-            transform: translateX(-50%) !important;
-            z-index: 100 !important;
-            white-space: nowrap !important;
-        }
+        #startButton {
+            color: white !important;
+            background-color: rgba(255, 255, 255, 0.2) !important;
+            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+            backdrop-filter: blur(10px) !important;
+            border-radius: 9999px !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
+            padding: 14px 24px !important;
+            min-width: 220px !important;
+            box-shadow: none !important;
+            opacity: 1 !important;
+            position: absolute !important;
+            bottom: 15% !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            z-index: 100 !important;
+            white-space: nowrap !important;
+        }
         #overlay {
             position: fixed;
             top: 0;
@@ -285,8 +285,9 @@
             max-height: 85vh;
             display: flex;
             flex-direction: column;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            animation: fadeIn 0.3s ease-out;
             position: relative;
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
         #close-help-button {
             position: absolute;
@@ -679,6 +680,7 @@
     </div>
 
     <div id="overlay">
+        <button id="startButton">ARモードで開始</button>
 
         <div id="help-modal">
             <div id="help-content-container">
@@ -777,7 +779,6 @@
                                                 <circle cx="18" cy="30" r="5" class="finger"/>
                                                 <circle cx="30" cy="18" r="5" class="finger"/>
                                                 <path d="M21,27 l-4,-4" stroke-width="1.5" stroke-dasharray="3 3"/>
-                                                <path d="M15,21 l-3,-1 l2,3" class="arrow" />
                                                 <path d="M27,21 l4,4" stroke-width="1.5" stroke-dasharray="3 3"/>
                                                 <path d="M33,27 l3,1 l-2,-3" class="arrow"/>
                                             </svg>
@@ -792,10 +793,9 @@
                                                 <circle cx="24" cy="24" r="5" class="finger"/>
                                                 <circle cx="24" cy="24" r="9" stroke-width="1.5" stroke-dasharray="2 4" opacity="0.9" />
                                             </svg>
-                                        </div>
-                                        <h4>長押しで削除</h4>
-                                        <p>家具を長押しすると削除の確認ができます。</p>
                                     </div>
+                                    <h4>長押しで削除</h4>
+                                    <p>家具を長押しすると削除の確認ができます。</p>
                                 </div>
                             </div>
                             <div class="help-section">
@@ -809,9 +809,9 @@
                                                 <circle cx="24" cy="24" r="6" stroke-width="2" fill="white"></circle>
                                                 <text x="36" y="32" font-family="sans-serif" font-size="20" font-weight="bold" stroke="none" fill="#CBD5E0">+</text>
                                             </svg>
-                                        </div>
-                                        <h4>サイズ変更</h4>
-                                        <p>スライダーを動かして家具の大きさを変更します。</p>
+                                    </div>
+                                    <h4>サイズ変更</h4>
+                                    <p>スライダーを動かして家具の大きさを変更します。</p>
                                     </div>
                                     <div class="help-card">
                                         <div class="icon-container">
@@ -828,15 +828,15 @@
                                     </div>
                                     <h4>配置の確定</h4>
                                     <p>家具の位置や向き、大きさを決定します。</p>
-                                    </div>
+                                </div>
                                 <div class="help-card">
                                     <div class="icon-container">
                                         <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.134-2.09-2.134H8.09a2.09 2.09 0 0 0-2.09 2.134v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
                                     </div>
                                     <h4>削除</h4>
                                     <p>選択中の家具をシーンから削除します。</p>
-                                    </div>
                                 </div>
+                            </div>
                     </div>
                 </div>
             </div>
@@ -1115,8 +1115,8 @@
                 overlay.addEventListener('touchstart', handleTouchStart, { passive: false });
                 overlay.addEventListener('touchmove', handleTouchMove, { passive: false });
                 overlay.addEventListener('touchend', handleTouchEnd);
-
-                document.getElementById('add-button').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 32px; height: 32px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>`;
+                
+                document.getElementById('add-button').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 32px; height: 32px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>`;
                 document.getElementById('edit-button').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 28px; height: 28px;"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" /></svg>`;
                 document.getElementById('delete-button').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 28px; height: 28px;"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.134-2.09-2.134H8.09a2.09 2.09 0 0 0-2.09 2.134v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>`;
                 document.getElementById('confirm-button').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" style="width: 28px; height: 28px;"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>`;
@@ -1128,6 +1128,7 @@
 
                 renderer.xr.addEventListener('sessionstart', () => {
                     document.getElementById('title-container').style.display = 'none';
+                    document.getElementById('startButton').style.display = 'none';
                     resetScene();
                     isEditMode = true;
                     updateUI();
@@ -1137,6 +1138,7 @@
 
                 renderer.xr.addEventListener('sessionend', () => {
                     document.getElementById('title-container').style.display = 'block';
+                    document.getElementById('startButton').style.display = 'block';
                     resetScene();
                     document.getElementById('exit-ar-button').style.display = 'none';
                     document.getElementById('help-button').style.display = 'none';
@@ -1146,11 +1148,40 @@
 
                 animate();
 
-                document.body.appendChild(ARButton.createButton(renderer, {
-                    requiredFeatures: ['hit-test'],
-                    optionalFeatures: ['dom-overlay'],
-                    domOverlay: { root: document.querySelector("#overlay") }
-                }));
+                if ( 'xr' in navigator ) {
+                    const startButton = document.getElementById('startButton');
+                    startButton.addEventListener('click', () => {
+                        const sessionInit = {
+                            requiredFeatures: ['hit-test'],
+                            optionalFeatures: ['dom-overlay'],
+                            domOverlay: { root: document.querySelector("#overlay") }
+                        };
+                        navigator.xr.requestSession('immersive-ar', sessionInit).then(session => {
+                            renderer.xr.setSession(session);
+                        }).catch(e => {
+                            console.error('Failed to start AR session', e);
+                            alert('ARセッションを開始できませんでした。デバイスがWebXRに対応しているか確認してください。');
+                        });
+                    });
+
+                    // WebXRが利用可能でない場合はボタンを無効化
+                    navigator.xr.isSessionSupported('immersive-ar').then(supported => {
+                        if (!supported) {
+                            startButton.textContent = 'ARモード非対応';
+                            startButton.disabled = true;
+                            startButton.style.opacity = 0.5;
+                            startButton.style.cursor = 'not-allowed';
+                        }
+                    });
+
+                } else {
+                    const startButton = document.getElementById('startButton');
+                    startButton.textContent = 'WebXR非対応';
+                    startButton.disabled = true;
+                    startButton.style.opacity = 0.5;
+                    startButton.style.cursor = 'not-allowed';
+                    alert('お使いのブラウザはWebXRに対応していません。WebXR対応ブラウザ（Meta Quest Browserなど）でアクセスしてください。');
+                }
             }
 
             function initializeARExperience() {
@@ -1163,7 +1194,6 @@
                 scene.add(reticle);
                 setupUI();
 
-                // ここから修正箇所
                 const controllerModelFactory = new XRControllerModelFactory();
 
                 const controllerGrip1 = renderer.xr.getControllerGrip(0);
@@ -1173,7 +1203,6 @@
                 const controllerGrip2 = renderer.xr.getControllerGrip(1);
                 controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
                 scene.add(controllerGrip2);
-                // ここまで修正箇所
             }
 
             const categoryTabsContainer = document.getElementById('category-tabs');
@@ -1242,7 +1271,7 @@
                     filteredFurniture.forEach(item => {
                         const gridItem = document.createElement('div');
                         gridItem.className = 'grid-item';
-                        gridItem.dataset.category = item.category; // アイテムにもカテゴリ情報を持たせる
+      　 　 　           gridItem.dataset.category = item.category; // アイテムにもカテゴリ情報を持たせる
 
                         // サムネイル画像を作成 (必要に応じてコメント解除して利用)
                         const img = document.createElement('img');
@@ -1262,7 +1291,7 @@
                             currentFurniture = item;
                             updatePreviewObject();
                             appState = 'PLACING';
-                            document.getElementById('furniture-modal').style.display = 'none'; // モーダルを閉じる
+          　                 document.getElementById('furniture-modal').style.display = 'none'; // モーダルを閉じる
                             updateUI();
                         });
                         furnitureGrid.appendChild(gridItem);
@@ -1330,7 +1359,7 @@
                     if (searchTerm.length > 0) {
                         clearSearchButton.style.display = 'block';
                     } else {
-                        clearSearchButton.style.display = 'none';
+    　 　                 clearSearchButton.style.display = 'none';
                     }
                 });
 
@@ -1339,7 +1368,7 @@
                     clearSearchButton.style.display = 'none';
                     const activeCategory = document.querySelector('.category-tab-button.active')?.dataset.category || 'すべて';
                     displayFurniture(activeCategory);
-                    searchInput.focus(); // クリア後に再度フォーカス
+  　 　             searchInput.focus(); // クリア後に再度フォーカス
                 });
 
 
@@ -1384,7 +1413,7 @@
                 confirmDialog = document.getElementById('confirm-dialog');
                 const confirmYesBtn = document.getElementById('confirm-delete-yes');
                 const confirmNoBtn = document.getElementById('confirm-delete-no');
-                confirmYesBtn.addEventListener('click', (e) => {
+  　 　         confirmYesBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (objectPendingDeletion) {
                         startDeleteAnimation(objectPendingDeletion);
@@ -1461,7 +1490,7 @@
 
                 modalContent.addEventListener('touchend', (e) => {
                     // touchstartで除外したものと同じ要素を再度チェック
-                    if (e.target.closest('.category-tab-button') || e.target.closest('#close-modal-button') || e.target.closest('#search-input')) {
+      　           if (e.target.closest('.category-tab-button') || e.target.closest('#close-modal-button') || e.target.closest('#search-input')) {
                         return; 
                     }
                     touchEndX = e.changedTouches[0].clientX;
@@ -1532,7 +1561,7 @@
             }
 
             function onObjectTap(event) {
-                const touch = event.changedTouches[0];
+      　         const touch = event.changedTouches[0];
                 const tapPosition = new THREE.Vector2(
                     (touch.clientX / window.innerWidth) * 2 - 1,
                     - (touch.clientY / window.innerHeight) * 2 + 1
@@ -1995,3 +2024,14 @@
                         item.object.position.y = item.initialY + progress * 0.5;
                         const opacity = 1.0 - progress;
                         setObjectTransparency(item.object, true, opacity);
+                    } else {
+                        scene.remove(item.object);
+                        objectsToDelete.splice(i, 1);
+                    }
+                }
+
+                if (!renderer.xr.isPresenting) {
+                    return;
+                }
+
+                if (isRotatingContinuously && (appState === 'PLACING' || appState === 'EDITING')) {

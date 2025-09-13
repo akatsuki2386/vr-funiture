@@ -1,81 +1,61 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <title>WebXR AR Experience</title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
-</head>
-<body>
-    <a-scene 
-        webxr="requiredFeatures: hit-test,local-floor;"
-        vr-mode-ui="enabled: false"
-        ar-hit-test="target-model: #box-model;"
-        gltf-model="draco: true"
+  <head>
+    <meta charset="utf-8" />
+    <title>Meta Quest 3 WebXR AR体験</title>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://unpkg.com/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <a-scene
+      vr-mode-ui="enabled: false"
+      ar-mode-ui="enabled: true"
+      renderer="colorManagement: true; physicallyCorrectLights: true;"
+      webxr="requiredFeatures: hit-test, local-floor;"
     >
-        <a-assets>
-            <a-asset-item id="box-model" src="https://cdn.glitch.global/654c6c58-29fe-455b-b519-c6e75a6c0260/robot.glb"></a-asset-item>
-        </a-assets>
+      <a-entity camera="active: true" look-controls wasd-controls position="0 1.6 0"></a-entity>
+      <a-light type="ambient" color="#FFF"></a-light>
+      <a-light type="directional" position="-1 1 1" intensity="0.5"></a-light>
 
-        <a-entity camera position="0 1.6 0"></a-entity>
-        <a-light type="ambient" color="#FFF"></a-light>
-        <a-light type="directional" position="1 1 1" color="#FFF"></a-light>
+      <a-entity id="marker" ar-hit-test="doHitTest: true; target:#ar-content;" wasd-controls position="0 1 0">
+        <a-box id="ar-content" position="0 0 -3" rotation="0 45 0" color="#4CC3D9" depth="0.5" height="0.5" width="0.5" scale="0.5 0.5 0.5" visible="false"></a-box>
+      </a-entity>
 
-        <a-entity 
-            id="ar-object" 
-            gltf-model="#box-model" 
-            scale="0.5 0.5 0.5" 
-            visible="false"
-            animation-mixer
-        ></a-entity>
-        
-        <a-entity id="placement-ui">
-            <a-entity 
-                geometry="primitive: circle; radius: 0.1;" 
-                material="color: #66CCFF; opacity: 0.8;" 
-                position="0 0 -1" 
-                rotation="90 0 0" 
-                scale="0.05 0.05 0.05"
-            ></a-entity>
-            <a-entity text="value: Tap to place object; color: #FFF; align: center;" position="0 0.1 -1" scale="0.2 0.2 0.2"></a-entity>
-        </a-entity>
-
-        <a-entity id="instruction-text" 
-            text="value: Move your device to find a surface.; color: #FFF; align: center;" 
-            position="0 0 -2" 
-            scale="0.5 0.5 0.5"
-            visible="true"
-        ></a-entity>
+      <a-entity ar-hit-test-plane="doHitTest: true; target:#ar-content;">
+        <a-gltf-model
+          gltf-model="#hit-test-model"
+          scale="0.5 0.5 0.5"
+          visible="false"
+        ></a-gltf-model>
+      </a-entity>
     </a-scene>
 
     <script>
-        const sceneEl = document.querySelector('a-scene');
-        const arObject = document.getElementById('ar-object');
-        const instructionText = document.getElementById('instruction-text');
-        
-        // ユーザーがタップしたときにオブジェクトを配置
-        sceneEl.addEventListener('click', (event) => {
-            const hitTestResult = sceneEl.components['ar-hit-test'].data.hitTestResult;
-            if (hitTestResult) {
-                const matrix = hitTestResult.transform.matrix;
-                const position = new THREE.Vector3().setFromMatrixPosition(matrix);
-                
-                arObject.setAttribute('position', position);
-                arObject.setAttribute('visible', true);
-                
-                // UIと指示を非表示にする
-                document.getElementById('placement-ui').setAttribute('visible', 'false');
-                instructionText.setAttribute('visible', 'false');
-            }
-        });
+      // ARコンテンツを配置するスクリプト
+      document.addEventListener('DOMContentLoaded', () => {
+        const arContent = document.getElementById('ar-content');
+        const marker = document.getElementById('marker');
+        let placed = false;
 
-        // ARセッションが開始されたときにUIを表示
-        sceneEl.addEventListener('enter-vr', (event) => {
-            if (sceneEl.is('ar-mode')) {
-                document.getElementById('placement-ui').setAttribute('visible', 'true');
+        window.addEventListener('click', (event) => {
+          if (!placed) {
+            const hitTestComponent = marker.components['ar-hit-test'];
+            if (hitTestComponent && hitTestComponent.hitTestResult) {
+              const hit = hitTestComponent.hitTestResult;
+              const position = hit.position;
+              arContent.setAttribute('position', position);
+              arContent.setAttribute('visible', true);
+              placed = true;
             }
+          }
         });
+      });
     </script>
-</body>
+  </body>
 </html>

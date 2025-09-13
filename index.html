@@ -1,64 +1,29 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>WebXR AR Experience</title>
+    <title>WebXR AR Sample</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <style>
-      body {
-        margin: 0;
-        overflow: hidden;
-      }
-      #ar-start-button {
-        position: fixed;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        padding: 15px 30px;
-        font-size: 1.2em;
-        font-family: sans-serif;
-        color: white;
-        background-color: #007bff;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-        z-index: 1000;
-      }
-    </style>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
   </head>
   <body>
-    <button id="ar-start-button">Enter AR</button>
-
     <a-scene
-      ar-mode
-      renderer="colorManagement: true;"
-      vr-mode-ui="enabled: false">
+      webxr="requiredFeatures: hit-test, dom-overlay; optionalFeatures: plane-detection;"
+      ar-mode="enabled: true;"
+      >
 
-      <a-camera position="0 0 0" look-controls="enabled: false" wasd-controls="enabled: false"></a-camera>
+      <a-entity
+        hit-test-plane
+        gltf-model="https://cdn.aframe.io/examples/ar/gears.glb"
+        scale="0.5 0.5 0.5"
+        position="0 0 -5"
+        ></a-entity>
 
-      <a-box
-        position="0 0.5 -1"
-        rotation="0 45 45"
-        color="#4CC3D9"
-        shadow></a-box>
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-      <a-light type="ambient" color="#BBB"></a-light>
-      <a-light type="directional" position="-1 1 1"></a-light>
+      <div id="ui" style="position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: white; padding: 10px; border-radius: 5px; z-index: 1000;">
+        <button onclick="document.querySelector('a-scene').exitAR()">Exit AR</button>
+      </div>
+
     </a-scene>
-
-    <script>
-      const arStartButton = document.getElementById('ar-start-button');
-      const sceneEl = document.querySelector('a-scene');
-
-      arStartButton.addEventListener('click', () => {
-        // ボタンを非表示にし、ARセッションを開始
-        arStartButton.style.display = 'none';
-        sceneEl.enterAR();
-      });
-
-      // ARセッションが終了した時にボタンを再表示
-      sceneEl.addEventListener('exit-ar', () => {
-        arStartButton.style.display = 'block';
-      });
-    </script>
   </body>
 </html>

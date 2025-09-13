@@ -1,29 +1,122 @@
 <!DOCTYPE html>
 <html>
-  <head>
+<head>
     <title>WebXR AR Sample</title>
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
-  </head>
-  <body>
-    <a-scene
-      webxr="requiredFeatures: hit-test, dom-overlay; optionalFeatures: plane-detection;"
-      ar-mode="enabled: true;"
-      >
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #ar-button {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+            }
+        }
+    </script>
 
-      <a-entity
-        hit-test-plane
-        gltf-model="https://cdn.aframe.io/examples/ar/gears.glb"
-        scale="0.5 0.5 0.5"
-        position="0 0 -5"
-        ></a-entity>
+    <script type="module">
+        import * as THREE from 'three';
+        import { ARButton } from 'three/addons/webxr/ARButton.js';
 
-      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+        let camera, scene, renderer;
+        let controller;
+        let hitTestSource = null;
+        let hitTestSourceRequested = false;
 
-      <div id="ui" style="position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: white; padding: 10px; border-radius: 5px; z-index: 1000;">
-        <button onclick="document.querySelector('a-scene').exitAR()">Exit AR</button>
-      </div>
+        init();
+        animate();
 
-    </a-scene>
-  </body>
+        function init() {
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            const arButton = ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] });
+            document.body.appendChild(arButton);
+
+            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+            light.position.set(0.5, 1, 0.25);
+            scene.add(light);
+
+            controller = renderer.xr.getController(0);
+            controller.addEventListener('select', onSelect);
+            scene.add(controller);
+
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        function onSelect() {
+            if (hitTestSourceRequested === false) return;
+
+            if (hitTestSource) {
+                const referenceSpace = renderer.xr.getReferenceSpace();
+                const session = renderer.xr.getSession();
+
+                // タップされた位置を特定するためのX軸とY軸を取得
+                const viewerPos = new THREE.Vector3();
+                viewerPos.setFromMatrixPosition(controller.matrixWorld);
+
+                const ray = new THREE.Raycaster();
+                ray.setFromCamera( { x: 0, y: 0 }, camera );
+                
+                session.requestHitTest(ray.ray, referenceSpace).then(hitTestResults => {
+                    if (hitTestResults.length > 0) {
+                        const hit = hitTestResults[0];
+                        const pose = hit.getPose(referenceSpace);
+                        
+                        const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+                        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+                        const cube = new THREE.Mesh(geometry, material);
+                        
+                        cube.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
+                        scene.add(cube);
+                    }
+                });
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            renderer.setAnimationLoop(render);
+        }
+
+        function render(timestamp, frame) {
+            if (frame) {
+                if (!hitTestSourceRequested) {
+                    renderer.xr.getSession().requestHitTestSource({ space: renderer.xr.getReferenceSpace() })
+                        .then(source => {
+                            hitTestSource = source;
+                        });
+                    hitTestSourceRequested = true;
+                }
+            }
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
 </html>

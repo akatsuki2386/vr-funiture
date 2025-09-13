@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebXR AR Sample</title>
+    <title>WebXR AR Sample with Controller</title>
     <style>
         body { margin: 0; overflow: hidden; }
         #ar-button {
@@ -32,7 +32,7 @@
 
         let camera, scene, renderer;
         let controller;
-        let reticle; // 追加: どこに配置できるかを示すリング
+        let reticle;
         let hitTestSource = null;
         let hitTestSourceRequested = false;
 
@@ -76,7 +76,6 @@
 
         function onSelect() {
             if (reticle.visible) {
-                // オブジェクトの作成と配置
                 const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
                 const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
                 const cube = new THREE.Mesh(geometry, material);
@@ -99,7 +98,8 @@
         function render(timestamp, frame) {
             if (frame) {
                 if (!hitTestSourceRequested) {
-                    renderer.xr.getSession().requestHitTestSource({ space: renderer.xr.getReferenceSpace() })
+                    const session = renderer.xr.getSession();
+                    session.requestHitTestSource({ space: session.viewerSpace })
                         .then(source => {
                             hitTestSource = source;
                         });
@@ -112,8 +112,25 @@
                         const hit = hitTestResults[0];
                         const pose = hit.getPose(renderer.xr.getReferenceSpace());
 
-                        reticle.visible = true;
-                        reticle.matrix.fromArray(pose.transform.matrix);
+                        // コントローラーの光線からヒットテストを再実施
+                        const controllerMatrix = controller.matrixWorld;
+                        const raycaster = new THREE.Raycaster();
+                        raycaster.setFromXRController(controller, renderer.xr.getReferenceSpace());
+
+                        const hitTestResultsFromController = renderer.xr.getSession().requestHitTest(
+                            raycaster.ray,
+                            renderer.xr.getReferenceSpace()
+                        );
+                        
+                        if (hitTestResultsFromController.length > 0) {
+                            const controllerHit = hitTestResultsFromController[0];
+                            const controllerPose = controllerHit.getPose(renderer.xr.getReferenceSpace());
+
+                            reticle.visible = true;
+                            reticle.matrix.fromArray(controllerPose.transform.matrix);
+                        } else {
+                            reticle.visible = false;
+                        }
                     } else {
                         reticle.visible = false;
                     }

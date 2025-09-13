@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebXR AR Sample with Controller</title>
+    <title>WebXR AR with Controller Model</title>
     <style>
         body { margin: 0; overflow: hidden; }
         #ar-button {
@@ -29,9 +29,12 @@
     <script type="module">
         import * as THREE from 'three';
         import { ARButton } from 'three/addons/webxr/ARButton.js';
+        import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+        import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 
         let camera, scene, renderer;
-        let controller;
+        let controller1, controller2;
+        let controllerGrip1, controllerGrip2;
         let reticle;
         let hitTestSource = null;
         let hitTestSourceRequested = false;
@@ -59,10 +62,26 @@
             light.position.set(0.5, 1, 0.25);
             scene.add(light);
 
-            controller = renderer.xr.getController(0);
-            controller.addEventListener('select', onSelect);
-            scene.add(controller);
+            // コントローラーの設定
+            controller1 = renderer.xr.getController(0);
+            controller1.addEventListener('selectstart', onSelectStart);
+            scene.add(controller1);
 
+            controller2 = renderer.xr.getController(1);
+            controller2.addEventListener('selectstart', onSelectStart);
+            scene.add(controller2);
+
+            // コントローラーの3Dモデルを読み込む
+            const controllerModelFactory = new XRControllerModelFactory();
+            
+            controllerGrip1 = renderer.xr.getControllerGrip(0);
+            controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
+            scene.add(controllerGrip1);
+
+            controllerGrip2 = renderer.xr.getControllerGrip(1);
+            controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
+            scene.add(controllerGrip2);
+            
             // Reticle（リング）の作成
             const geometry = new THREE.RingGeometry(0.1, 0.12, 32).rotateX(-Math.PI / 2);
             const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
@@ -74,7 +93,8 @@
             window.addEventListener('resize', onWindowResize, false);
         }
 
-        function onSelect() {
+        function onSelectStart(event) {
+            const controller = event.target;
             if (reticle.visible) {
                 const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
                 const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
@@ -113,9 +133,9 @@
                         const pose = hit.getPose(renderer.xr.getReferenceSpace());
 
                         // コントローラーの光線からヒットテストを再実施
-                        const controllerMatrix = controller.matrixWorld;
+                        const controllerMatrix = controller1.matrixWorld;
                         const raycaster = new THREE.Raycaster();
-                        raycaster.setFromXRController(controller, renderer.xr.getReferenceSpace());
+                        raycaster.setFromXRController(controller1, renderer.xr.getReferenceSpace());
 
                         const hitTestResultsFromController = renderer.xr.getSession().requestHitTest(
                             raycaster.ray,

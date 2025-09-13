@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebXR AR with Dual Controllers & Haptics</title>
+    <title>WebXR AR with Dual Controllers, Haptics & Hand Tracking</title>
     <style>
         body { margin: 0; overflow: hidden; }
         #ar-button {
@@ -21,7 +21,7 @@
         {
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
-                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+                "three/addons/": "https://cdn.jsdelivr.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
             }
         }
     </script>
@@ -35,6 +35,7 @@
         let camera, scene, renderer;
         let controller1, controller2;
         let controllerGrip1, controllerGrip2;
+        let hand1, hand2; // Variables for hand controllers
         let reticle;
         let hitTestSource = null;
         let hitTestSourceRequested = false;
@@ -55,14 +56,18 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.xr.enabled = true;
             container.appendChild(renderer.domElement);
-
-            const arButton = ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] });
+            
+            // Request the 'hand-tracking' feature along with 'hit-test'
+            const arButton = ARButton.createButton(renderer, { 
+                requiredFeatures: ['hit-test', 'hand-tracking'] 
+            });
             document.body.appendChild(arButton);
 
             const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
             light.position.set(0.5, 1, 0.25);
             scene.add(light);
 
+            // Setup controllers for both hands and hand tracking
             controller1 = renderer.xr.getController(0);
             controller1.addEventListener('selectstart', onSelectStart);
             scene.add(controller1);
@@ -72,7 +77,8 @@
             scene.add(controller2);
 
             const controllerModelFactory = new XRControllerModelFactory();
-            
+            const handModelFactory = new XRHandModelFactory();
+
             controllerGrip1 = renderer.xr.getControllerGrip(0);
             controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
             scene.add(controllerGrip1);
@@ -80,8 +86,17 @@
             controllerGrip2 = renderer.xr.getControllerGrip(1);
             controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
             scene.add(controllerGrip2);
+            
+            // Hand tracking setup
+            hand1 = renderer.xr.getHand(0);
+            hand1.add(handModelFactory.createHandModel(hand1));
+            scene.add(hand1);
 
-            // カスタマイズされたレイキャストの作成
+            hand2 = renderer.xr.getHand(1);
+            hand2.add(handModelFactory.createHandModel(hand2));
+            scene.add(hand2);
+
+            // Create lasers for controllers
             const laserGeometry = new THREE.CylinderGeometry(0.002, 0.002, 1, 32).rotateX(Math.PI / 2);
             const laserMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.7 });
             
@@ -129,8 +144,25 @@
 
         function render(timestamp, frame) {
             if (frame) {
+                const session = renderer.xr.getSession();
+
+                // Check for input source types (hands or controllers)
+                for (const source of session.inputSources) {
+                    if (source.hand) {
+                        // Hide the controller models and lasers if hand tracking is active
+                        controllerGrip1.visible = false;
+                        controllerGrip2.visible = false;
+                        lasers.forEach(laser => laser.visible = false);
+                        break; 
+                    } else {
+                        // Show controllers if no hands are detected
+                        controllerGrip1.visible = true;
+                        controllerGrip2.visible = true;
+                        lasers.forEach(laser => laser.visible = true);
+                    }
+                }
+
                 if (!hitTestSourceRequested) {
-                    const session = renderer.xr.getSession();
                     session.requestHitTestSource({ space: session.viewerSpace })
                         .then(source => {
                             hitTestSource = source;
@@ -139,6 +171,7 @@
                 }
 
                 if (hitTestSource) {
+                    // Update hit test based on controllers
                     const raycaster1 = new THREE.Raycaster();
                     raycaster1.setFromXRController(controller1, renderer.xr.getReferenceSpace());
                     const hitTestResults1 = renderer.xr.getSession().requestHitTest(raycaster1.ray, renderer.xr.getReferenceSpace());
@@ -154,12 +187,10 @@
                         const controllerPose = controllerHit.getPose(renderer.xr.getReferenceSpace());
                         lasers[0].scale.y = controllerPose.transform.position.distanceTo(controller1.position);
 
-                        // ヒットしたコントローラーを振動させる
                         const session = renderer.xr.getSession();
                         if (session.inputSources[0] && session.inputSources[0].hapticActuators[0]) {
                             session.inputSources[0].hapticActuators[0].pulse(0.5, 50);
                         }
-
                     } else {
                         lasers[0].scale.y = 10;
                     }
@@ -169,12 +200,10 @@
                         const controllerPose = controllerHit.getPose(renderer.xr.getReferenceSpace());
                         lasers[1].scale.y = controllerPose.transform.position.distanceTo(controller2.position);
                         
-                        // ヒットしたコントローラーを振動させる
                         const session = renderer.xr.getSession();
                         if (session.inputSources[1] && session.inputSources[1].hapticActuators[0]) {
                             session.inputSources[1].hapticActuators[0].pulse(0.5, 50);
                         }
-
                     } else {
                         lasers[1].scale.y = 10;
                     }
@@ -186,7 +215,6 @@
                     } else {
                         reticle.visible = false;
                     }
-
                 }
             }
             renderer.render(scene, camera);

@@ -1,61 +1,25 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="utf-8" />
-    <title>Meta Quest 3 WebXR AR体験</title>
+    <title>WebXR AR Experience</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script src="https://unpkg.com/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
-    <style>
-      body {
-        margin: 0;
-        overflow: hidden;
-      }
-    </style>
   </head>
   <body>
     <a-scene
-      vr-mode-ui="enabled: false"
-      ar-mode-ui="enabled: true"
-      renderer="colorManagement: true; physicallyCorrectLights: true;"
-      webxr="requiredFeatures: hit-test, local-floor;"
-    >
-      <a-entity camera="active: true" look-controls wasd-controls position="0 1.6 0"></a-entity>
-      <a-light type="ambient" color="#FFF"></a-light>
-      <a-light type="directional" position="-1 1 1" intensity="0.5"></a-light>
+      ar-mode
+      renderer="colorManagement: true;"
+      vr-mode-ui="enabled: false">
 
-      <a-entity id="marker" ar-hit-test="doHitTest: true; target:#ar-content;" wasd-controls position="0 1 0">
-        <a-box id="ar-content" position="0 0 -3" rotation="0 45 0" color="#4CC3D9" depth="0.5" height="0.5" width="0.5" scale="0.5 0.5 0.5" visible="false"></a-box>
-      </a-entity>
+      <a-camera position="0 0 0" look-controls="enabled: false" wasd-controls="enabled: false"></a-camera>
 
-      <a-entity ar-hit-test-plane="doHitTest: true; target:#ar-content;">
-        <a-gltf-model
-          gltf-model="#hit-test-model"
-          scale="0.5 0.5 0.5"
-          visible="false"
-        ></a-gltf-model>
-      </a-entity>
+      <a-box
+        position="0 1.5 -1"
+        rotation="0 45 45"
+        color="#4CC3D9"
+        shadow></a-box>
+
+      <a-light type="ambient" color="#BBB"></a-light>
+      <a-light type="directional" position="-1 1 1"></a-light>
     </a-scene>
-
-    <script>
-      // ARコンテンツを配置するスクリプト
-      document.addEventListener('DOMContentLoaded', () => {
-        const arContent = document.getElementById('ar-content');
-        const marker = document.getElementById('marker');
-        let placed = false;
-
-        window.addEventListener('click', (event) => {
-          if (!placed) {
-            const hitTestComponent = marker.components['ar-hit-test'];
-            if (hitTestComponent && hitTestComponent.hitTestResult) {
-              const hit = hitTestComponent.hitTestResult;
-              const position = hit.position;
-              arContent.setAttribute('position', position);
-              arContent.setAttribute('visible', true);
-              placed = true;
-            }
-          }
-        });
-      });
-    </script>
   </body>
 </html>

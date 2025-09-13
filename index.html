@@ -32,6 +32,7 @@
 
         let camera, scene, renderer;
         let controller;
+        let reticle; // 追加: どこに配置できるかを示すリング
         let hitTestSource = null;
         let hitTestSourceRequested = false;
 
@@ -62,36 +63,26 @@
             controller.addEventListener('select', onSelect);
             scene.add(controller);
 
+            // Reticle（リング）の作成
+            const geometry = new THREE.RingGeometry(0.1, 0.12, 32).rotateX(-Math.PI / 2);
+            const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            reticle = new THREE.Mesh(geometry, material);
+            reticle.matrixAutoUpdate = false;
+            reticle.visible = false;
+            scene.add(reticle);
+
             window.addEventListener('resize', onWindowResize, false);
         }
 
         function onSelect() {
-            if (hitTestSourceRequested === false) return;
-
-            if (hitTestSource) {
-                const referenceSpace = renderer.xr.getReferenceSpace();
-                const session = renderer.xr.getSession();
-
-                // タップされた位置を特定するためのX軸とY軸を取得
-                const viewerPos = new THREE.Vector3();
-                viewerPos.setFromMatrixPosition(controller.matrixWorld);
-
-                const ray = new THREE.Raycaster();
-                ray.setFromCamera( { x: 0, y: 0 }, camera );
+            if (reticle.visible) {
+                // オブジェクトの作成と配置
+                const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+                const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+                const cube = new THREE.Mesh(geometry, material);
                 
-                session.requestHitTest(ray.ray, referenceSpace).then(hitTestResults => {
-                    if (hitTestResults.length > 0) {
-                        const hit = hitTestResults[0];
-                        const pose = hit.getPose(referenceSpace);
-                        
-                        const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-                        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-                        const cube = new THREE.Mesh(geometry, material);
-                        
-                        cube.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
-                        scene.add(cube);
-                    }
-                });
+                cube.position.setFromMatrixPosition(reticle.matrix);
+                scene.add(cube);
             }
         }
 
@@ -113,6 +104,19 @@
                             hitTestSource = source;
                         });
                     hitTestSourceRequested = true;
+                }
+
+                if (hitTestSource) {
+                    const hitTestResults = frame.getHitTestResults(hitTestSource);
+                    if (hitTestResults.length > 0) {
+                        const hit = hitTestResults[0];
+                        const pose = hit.getPose(renderer.xr.getReferenceSpace());
+
+                        reticle.visible = true;
+                        reticle.matrix.fromArray(pose.transform.matrix);
+                    } else {
+                        reticle.visible = false;
+                    }
                 }
             }
             renderer.render(scene, camera);

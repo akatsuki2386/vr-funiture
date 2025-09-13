@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebXR AR with All Inputs & Joint Tracking</title>
+    <title>WebXR AR with All Inputs & Joint Tracking (Custom Hands)</title>
     <style>
         body { margin: 0; overflow: hidden; }
         #ar-button {
@@ -58,7 +58,6 @@
             renderer.xr.enabled = true;
             container.appendChild(renderer.domElement);
 
-            // 'hand-tracking'を必須機能に追加
             const arButton = ARButton.createButton(renderer, { requiredFeatures: ['hit-test', 'hand-tracking'] });
             document.body.appendChild(arButton);
 
@@ -66,7 +65,6 @@
             light.position.set(0.5, 1, 0.25);
             scene.add(light);
 
-            // Reticle（リング）の作成
             const reticleGeometry = new THREE.RingGeometry(0.1, 0.12, 32).rotateX(-Math.PI / 2);
             const reticleMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
             reticle = new THREE.Mesh(reticleGeometry, reticleMaterial);
@@ -114,9 +112,27 @@
             hand2 = renderer.xr.getHand(1);
 
             const handModelFactory = new XRHandModelFactory();
-            // 'joints'モードで手のモデルを読み込み、指の関節の動きを反映させる
-            hand1.add(handModelFactory.createHandModel(hand1, "joints"));
-            hand2.add(handModelFactory.createHandModel(hand2, "joints"));
+            
+            // HandModelを読み込み、そのメッシュのマテリアルをカスタマイズする
+            // 'joints'モードでモデルを生成し、ロード後にマテリアルを変更
+            const createCustomHandModel = (hand) => {
+                const handModel = handModelFactory.createHandModel(hand, "joints");
+                // モデルが完全にロードされた後にマテリアルを変更するため、ロードイベントを待つ
+                handModel.traverse(child => {
+                    if (child.isMesh) {
+                        child.material = new THREE.MeshBasicMaterial({ 
+                            color: 0x000000, // 黒色
+                            transparent: true,
+                            opacity: 0.5, // 半透明
+                            side: THREE.DoubleSide // 両面表示
+                        });
+                    }
+                });
+                return handModel;
+            };
+
+            hand1.add(createCustomHandModel(hand1));
+            hand2.add(createCustomHandModel(hand2));
 
             hand1.addEventListener('pinchend', onPinchEnd);
             hand2.addEventListener('pinchend', onPinchEnd);
@@ -169,6 +185,8 @@
                     let hit = null;
 
                     // コントローラーがアクティブな場合は、そのヒットテスト結果を使用
+                    // WebXRデバイスは通常、コントローラーが接続されるとハンドトラッキングを自動でオフにするため、
+                    // controllerGripのvisibleプロパティで判断するのは妥当です。
                     if (controllerGrip1 && controllerGrip1.visible) {
                         const raycaster1 = new THREE.Raycaster();
                         raycaster1.setFromXRController(controller1, renderer.xr.getReferenceSpace());
@@ -184,12 +202,13 @@
                             laser1.scale.y = controllerPose.transform.position.distanceTo(controller1.position);
                             laser1.visible = true;
                         } else {
-                            laser1.scale.y = 10;
+                            laser1.scale.y = 10; // ヒットしない場合は最大距離
                             laser1.visible = true;
                         }
                         
                         if (controllerHitResults2.length > 0) {
-                            hit = controllerHitResults2[0];
+                            // どちらかのコントローラーのヒット結果を使えばよい
+                            hit = controllerHitResults2[0]; // もし両方ヒットしていたら上書きされる
                             const controllerPose = hit.getPose(renderer.xr.getReferenceSpace());
                             laser2.scale.y = controllerPose.transform.position.distanceTo(controller2.position);
                             laser2.visible = true;
@@ -197,13 +216,13 @@
                             laser2.scale.y = 10;
                             laser2.visible = true;
                         }
-
                     } else if (hitTestResults.length > 0) {
-                        // コントローラーがない場合は、ビューポートの中心からのヒットテスト結果を使用
+                        // コントローラーがない（ハンドトラッキングが有効な）場合は、ビューポートの中心からのヒットテスト結果を使用
                         hit = hitTestResults[0];
                         if (laser1) laser1.visible = false;
                         if (laser2) laser2.visible = false;
                     } else {
+                        // どちらの入力もヒットしない場合
                         if (laser1) laser1.visible = false;
                         if (laser2) laser2.visible = false;
                     }

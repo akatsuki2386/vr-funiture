@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebXR AR with Dual Controllers & Haptics</title>
+    <title>WebXR AR with All Inputs & Joint Tracking</title>
     <style>
         body { margin: 0; overflow: hidden; }
         #ar-button {
@@ -33,12 +33,14 @@
         import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 
         let camera, scene, renderer;
-        let controller1, controller2;
-        let controllerGrip1, controllerGrip2;
         let reticle;
         let hitTestSource = null;
         let hitTestSourceRequested = false;
-        let lasers = [];
+        
+        let controller1, controller2;
+        let controllerGrip1, controllerGrip2;
+        let hand1, hand2;
+        let laser1, laser2;
 
         init();
         animate();
@@ -56,20 +58,31 @@
             renderer.xr.enabled = true;
             container.appendChild(renderer.domElement);
 
-            const arButton = ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] });
+            // 'hand-tracking'を必須機能に追加
+            const arButton = ARButton.createButton(renderer, { requiredFeatures: ['hit-test', 'hand-tracking'] });
             document.body.appendChild(arButton);
 
             const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
             light.position.set(0.5, 1, 0.25);
             scene.add(light);
 
-            controller1 = renderer.xr.getController(0);
-            controller1.addEventListener('selectstart', onSelectStart);
-            scene.add(controller1);
+            // Reticle（リング）の作成
+            const reticleGeometry = new THREE.RingGeometry(0.1, 0.12, 32).rotateX(-Math.PI / 2);
+            const reticleMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            reticle = new THREE.Mesh(reticleGeometry, reticleMaterial);
+            reticle.matrixAutoUpdate = false;
+            reticle.visible = false;
+            scene.add(reticle);
 
+            setupControllers();
+            setupHands();
+
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        function setupControllers() {
+            controller1 = renderer.xr.getController(0);
             controller2 = renderer.xr.getController(1);
-            controller2.addEventListener('selectstart', onSelectStart);
-            scene.add(controller2);
 
             const controllerModelFactory = new XRControllerModelFactory();
             
@@ -81,40 +94,53 @@
             controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
             scene.add(controllerGrip2);
 
-            // カスタマイズされたレイキャストの作成
             const laserGeometry = new THREE.CylinderGeometry(0.002, 0.002, 1, 32).rotateX(Math.PI / 2);
             const laserMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.7 });
             
-            const laser1 = new THREE.Mesh(laserGeometry, laserMaterial);
+            laser1 = new THREE.Mesh(laserGeometry, laserMaterial);
             laser1.position.set(0, 0, -0.5);
             controller1.add(laser1);
-            lasers.push(laser1);
 
-            const laser2 = new THREE.Mesh(laserGeometry, laserMaterial);
+            laser2 = new THREE.Mesh(laserGeometry, laserMaterial);
             laser2.position.set(0, 0, -0.5);
             controller2.add(laser2);
-            lasers.push(laser2);
 
-            const reticleGeometry = new THREE.RingGeometry(0.1, 0.12, 32).rotateX(-Math.PI / 2);
-            const reticleMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-            reticle = new THREE.Mesh(reticleGeometry, reticleMaterial);
-            reticle.matrixAutoUpdate = false;
-            reticle.visible = false;
-            scene.add(reticle);
+            controller1.addEventListener('selectstart', onSelectStart);
+            controller2.addEventListener('selectstart', onSelectStart);
+        }
 
-            window.addEventListener('resize', onWindowResize, false);
+        function setupHands() {
+            hand1 = renderer.xr.getHand(0);
+            hand2 = renderer.xr.getHand(1);
+
+            const handModelFactory = new XRHandModelFactory();
+            // 'joints'モードで手のモデルを読み込み、指の関節の動きを反映させる
+            hand1.add(handModelFactory.createHandModel(hand1, "joints"));
+            hand2.add(handModelFactory.createHandModel(hand2, "joints"));
+
+            hand1.addEventListener('pinchend', onPinchEnd);
+            hand2.addEventListener('pinchend', onPinchEnd);
         }
 
         function onSelectStart(event) {
-            const controller = event.target;
             if (reticle.visible) {
-                const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-                const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-                const cube = new THREE.Mesh(geometry, material);
-                
-                cube.position.setFromMatrixPosition(reticle.matrix);
-                scene.add(cube);
+                placeCube();
             }
+        }
+
+        function onPinchEnd(event) {
+            if (reticle.visible) {
+                placeCube();
+            }
+        }
+
+        function placeCube() {
+            const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+            const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+            const cube = new THREE.Mesh(geometry, material);
+            
+            cube.position.setFromMatrixPosition(reticle.matrix);
+            scene.add(cube);
         }
 
         function onWindowResize() {
@@ -139,54 +165,56 @@
                 }
 
                 if (hitTestSource) {
-                    const raycaster1 = new THREE.Raycaster();
-                    raycaster1.setFromXRController(controller1, renderer.xr.getReferenceSpace());
-                    const hitTestResults1 = renderer.xr.getSession().requestHitTest(raycaster1.ray, renderer.xr.getReferenceSpace());
+                    const hitTestResults = frame.getHitTestResults(hitTestSource);
+                    let hit = null;
 
-                    const raycaster2 = new THREE.Raycaster();
-                    raycaster2.setFromXRController(controller2, renderer.xr.getReferenceSpace());
-                    const hitTestResults2 = renderer.xr.getSession().requestHitTest(raycaster2.ray, renderer.xr.getReferenceSpace());
-                    
-                    let controllerHit = null;
+                    // コントローラーがアクティブな場合は、そのヒットテスト結果を使用
+                    if (controllerGrip1 && controllerGrip1.visible) {
+                        const raycaster1 = new THREE.Raycaster();
+                        raycaster1.setFromXRController(controller1, renderer.xr.getReferenceSpace());
+                        const controllerHitResults1 = renderer.xr.getSession().requestHitTest(raycaster1.ray, renderer.xr.getReferenceSpace());
 
-                    if (hitTestResults1.length > 0) {
-                        controllerHit = hitTestResults1[0];
-                        const controllerPose = controllerHit.getPose(renderer.xr.getReferenceSpace());
-                        lasers[0].scale.y = controllerPose.transform.position.distanceTo(controller1.position);
+                        const raycaster2 = new THREE.Raycaster();
+                        raycaster2.setFromXRController(controller2, renderer.xr.getReferenceSpace());
+                        const controllerHitResults2 = renderer.xr.getSession().requestHitTest(raycaster2.ray, renderer.xr.getReferenceSpace());
 
-                        // ヒットしたコントローラーを振動させる
-                        const session = renderer.xr.getSession();
-                        if (session.inputSources[0] && session.inputSources[0].hapticActuators[0]) {
-                            session.inputSources[0].hapticActuators[0].pulse(0.5, 50);
+                        if (controllerHitResults1.length > 0) {
+                            hit = controllerHitResults1[0];
+                            const controllerPose = hit.getPose(renderer.xr.getReferenceSpace());
+                            laser1.scale.y = controllerPose.transform.position.distanceTo(controller1.position);
+                            laser1.visible = true;
+                        } else {
+                            laser1.scale.y = 10;
+                            laser1.visible = true;
                         }
-
-                    } else {
-                        lasers[0].scale.y = 10;
-                    }
-
-                    if (hitTestResults2.length > 0) {
-                        controllerHit = hitTestResults2[0];
-                        const controllerPose = controllerHit.getPose(renderer.xr.getReferenceSpace());
-                        lasers[1].scale.y = controllerPose.transform.position.distanceTo(controller2.position);
                         
-                        // ヒットしたコントローラーを振動させる
-                        const session = renderer.xr.getSession();
-                        if (session.inputSources[1] && session.inputSources[1].hapticActuators[0]) {
-                            session.inputSources[1].hapticActuators[0].pulse(0.5, 50);
+                        if (controllerHitResults2.length > 0) {
+                            hit = controllerHitResults2[0];
+                            const controllerPose = hit.getPose(renderer.xr.getReferenceSpace());
+                            laser2.scale.y = controllerPose.transform.position.distanceTo(controller2.position);
+                            laser2.visible = true;
+                        } else {
+                            laser2.scale.y = 10;
+                            laser2.visible = true;
                         }
 
+                    } else if (hitTestResults.length > 0) {
+                        // コントローラーがない場合は、ビューポートの中心からのヒットテスト結果を使用
+                        hit = hitTestResults[0];
+                        if (laser1) laser1.visible = false;
+                        if (laser2) laser2.visible = false;
                     } else {
-                        lasers[1].scale.y = 10;
+                        if (laser1) laser1.visible = false;
+                        if (laser2) laser2.visible = false;
                     }
-
-                    if (controllerHit) {
+                    
+                    if (hit) {
                         reticle.visible = true;
-                        const controllerPose = controllerHit.getPose(renderer.xr.getReferenceSpace());
-                        reticle.matrix.fromArray(controllerPose.transform.matrix);
+                        const pose = hit.getPose(renderer.xr.getReferenceSpace());
+                        reticle.matrix.fromArray(pose.transform.matrix);
                     } else {
                         reticle.visible = false;
                     }
-
                 }
             }
             renderer.render(scene, camera);

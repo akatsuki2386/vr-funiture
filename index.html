@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebXR AR with Controller and Raycast</title>
+    <title>WebXR AR with Dual Controllers</title>
     <style>
         body { margin: 0; overflow: hidden; }
         #ar-button {
@@ -39,8 +39,8 @@
         let hitTestSource = null;
         let hitTestSourceRequested = false;
 
-        // レイキャストのオブジェクト
-        let laser;
+        // レイキャストのオブジェクトを配列で管理
+        let lasers = [];
 
         init();
         animate();
@@ -85,12 +85,19 @@
             controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
             scene.add(controllerGrip2);
 
-            // レイキャストの作成
-            const geometry = new THREE.CylinderGeometry(0.005, 0.005, 1, 32).rotateX(Math.PI / 2);
-            const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
-            laser = new THREE.Mesh(geometry, material);
-            laser.position.set(0, 0, -0.5);
-            controller1.add(laser); // コントローラーの子オブジェクトとして追加
+            // レイキャストの作成 (左右分)
+            const laserGeometry = new THREE.CylinderGeometry(0.005, 0.005, 1, 32).rotateX(Math.PI / 2);
+            const laserMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            
+            const laser1 = new THREE.Mesh(laserGeometry, laserMaterial);
+            laser1.position.set(0, 0, -0.5);
+            controller1.add(laser1);
+            lasers.push(laser1);
+
+            const laser2 = new THREE.Mesh(laserGeometry, laserMaterial);
+            laser2.position.set(0, 0, -0.5);
+            controller2.add(laser2);
+            lasers.push(laser2);
 
             // Reticle（リング）の作成
             const reticleGeometry = new THREE.RingGeometry(0.1, 0.12, 32).rotateX(-Math.PI / 2);
@@ -142,29 +149,42 @@
                         const hit = hitTestResults[0];
                         const pose = hit.getPose(renderer.xr.getReferenceSpace());
 
-                        // コントローラーの光線からヒットテストを再実施
-                        const raycaster = new THREE.Raycaster();
-                        raycaster.setFromXRController(controller1, renderer.xr.getReferenceSpace());
+                        // 両方のコントローラーの光線からヒットテストを再実施
+                        const raycaster1 = new THREE.Raycaster();
+                        raycaster1.setFromXRController(controller1, renderer.xr.getReferenceSpace());
+                        const hitTestResults1 = renderer.xr.getSession().requestHitTest(raycaster1.ray, renderer.xr.getReferenceSpace());
 
-                        const hitTestResultsFromController = renderer.xr.getSession().requestHitTest(
-                            raycaster.ray,
-                            renderer.xr.getReferenceSpace()
-                        );
+                        const raycaster2 = new THREE.Raycaster();
+                        raycaster2.setFromXRController(controller2, renderer.xr.getReferenceSpace());
+                        const hitTestResults2 = renderer.xr.getSession().requestHitTest(raycaster2.ray, renderer.xr.getReferenceSpace());
                         
-                        if (hitTestResultsFromController.length > 0) {
-                            const controllerHit = hitTestResultsFromController[0];
-                            const controllerPose = controllerHit.getPose(renderer.xr.getReferenceSpace());
+                        let controllerHit = null;
+                        if (hitTestResults1.length > 0) {
+                            controllerHit = hitTestResults1[0];
+                            lasers[0].scale.y = controllerHit.getPose(renderer.xr.getReferenceSpace()).transform.position.distanceTo(controller1.position);
+                        } else {
+                            lasers[0].scale.y = 1;
+                        }
 
+                        if (hitTestResults2.length > 0) {
+                            controllerHit = hitTestResults2[0];
+                            lasers[1].scale.y = controllerHit.getPose(renderer.xr.getReferenceSpace()).transform.position.distanceTo(controller2.position);
+                        } else {
+                            lasers[1].scale.y = 1;
+                        }
+
+                        if (controllerHit) {
                             reticle.visible = true;
+                            const controllerPose = controllerHit.getPose(renderer.xr.getReferenceSpace());
                             reticle.matrix.fromArray(controllerPose.transform.matrix);
-                            laser.scale.y = reticle.position.distanceTo(controller1.position);
                         } else {
                             reticle.visible = false;
-                            laser.scale.y = 1; // ヒットしない場合は一定の長さを保持
                         }
+
                     } else {
                         reticle.visible = false;
-                        laser.scale.y = 1;
+                        lasers[0].scale.y = 1;
+                        lasers[1].scale.y = 1;
                     }
                 }
             }

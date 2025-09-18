@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR Placement Reticle</title>
+    <title>WebXR Pointer Placement</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -96,13 +96,16 @@
             if (frame) {
                 const session = renderer.xr.getSession();
 
-                // `hit-test`のソースをリクエスト
+                // `hit-test`のソースをコントローラーの空間でリクエスト
                 if (!hitTestSourceRequested) {
-                    session.requestReferenceSpace('viewer').then(function (referenceSpace) {
-                        session.requestHitTestSource({ space: referenceSpace }).then(function (source) {
-                            hitTestSource = source;
-                        });
+                    session.inputSources.forEach(inputSource => {
+                        if (inputSource.targetRayMode === 'tracked-pointer') {
+                            session.requestHitTestSource({ space: inputSource.targetRaySpace }).then(function (source) {
+                                hitTestSource = source;
+                            });
+                        }
                     });
+                    
                     session.addEventListener('end', function () {
                         hitTestSourceRequested = false;
                         hitTestSource = null;

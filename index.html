@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebXR AR with Dual Controllers & Haptics</title>
+    <meta charset="utf-8">
+    <title>WebXR Plane Detection</title>
     <style>
-        body { margin: 0; overflow: hidden; }
+        body { margin: 0; }
+        canvas { display: block; }
         #ar-button {
             position: absolute;
             bottom: 20px;
@@ -12,176 +14,116 @@
             padding: 10px 20px;
             font-size: 16px;
             cursor: pointer;
-            z-index: 1000;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            z-index: 100;
         }
     </style>
 </head>
 <body>
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
-                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
-            }
-        }
-    </script>
 
-    <script type="module">
-        import * as THREE from 'three';
-        import { ARButton } from 'three/addons/webxr/ARButton.js';
-        import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
-        import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
+    <button id="ar-button">Start AR</button>
 
-        let camera, scene, renderer;
-        let controller1, controller2;
-        let controllerGrip1, controllerGrip2;
-        let reticle;
-        let hitTestSource = null;
-        let hitTestSourceRequested = false;
-        let lasers = [];
-        let planes = [];
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
-        init();
-        animate();
+    <script>
+        let scene, camera, renderer;
+        let controller;
+        let arButton = document.getElementById('ar-button');
+        let session = null;
+        const planeMeshes = new Map();
 
+        // ------------------ 初期化 ------------------
         function init() {
-            const container = document.createElement('div');
-            document.body.appendChild(container);
-
             scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.xr.enabled = true;
-            container.appendChild(renderer.domElement);
-
-            // 必須機能に 'plane-detection' を追加
-            const arButton = ARButton.createButton(renderer, { requiredFeatures: ['hit-test', 'local-floor', 'plane-detection'] });
-            document.body.appendChild(arButton);
-
+            document.body.appendChild(renderer.domElement);
+            
+            // ライトの追加
             const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
             light.position.set(0.5, 1, 0.25);
             scene.add(light);
-
-            controller1 = renderer.xr.getController(0);
-            controller1.addEventListener('selectstart', onSelectStart);
-            scene.add(controller1);
-
-            controller2 = renderer.xr.getController(1);
-            controller2.addEventListener('selectstart', onSelectStart);
-            scene.add(controller2);
-
-            const controllerModelFactory = new XRControllerModelFactory();
             
-            controllerGrip1 = renderer.xr.getControllerGrip(0);
-            controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
-            scene.add(controllerGrip1);
-
-            controllerGrip2 = renderer.xr.getControllerGrip(1);
-            controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
-            scene.add(controllerGrip2);
-
-            const laserGeometry = new THREE.CylinderGeometry(0.002, 0.002, 1, 32).rotateX(Math.PI / 2);
-            const laserMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.7 });
-            
-            const laser1 = new THREE.Mesh(laserGeometry, laserMaterial);
-            laser1.position.set(0, 0, -0.5);
-            controller1.add(laser1);
-            lasers.push(laser1);
-
-            const laser2 = new THREE.Mesh(laserGeometry, laserMaterial);
-            laser2.position.set(0, 0, -0.5);
-            controller2.add(laser2);
-            lasers.push(laser2);
-
-            const reticleGeometry = new THREE.RingGeometry(0.1, 0.12, 32).rotateX(-Math.PI / 2);
-            const reticleMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-            reticle = new THREE.Mesh(reticleGeometry, reticleMaterial);
-            reticle.matrixAutoUpdate = false;
-            reticle.visible = false;
-            scene.add(reticle);
-
-            window.addEventListener('resize', onWindowResize, false);
+            // ARセッションの開始ボタンの設定
+            arButton.addEventListener('click', onARButtonClick);
         }
 
-        function onSelectStart(event) {
-            if (reticle.visible) {
-                const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-                const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-                const cube = new THREE.Mesh(geometry, material);
-                
-                cube.position.setFromMatrixPosition(reticle.matrix);
-                scene.add(cube);
+        // ------------------ ARセッション開始 ------------------
+        async function onARButtonClick() {
+            if (navigator.xr) {
+                try {
+                    session = await navigator.xr.requestSession('immersive-ar', {
+                        requiredFeatures: ['hit-test', 'plane-detection']
+                    });
+                    
+                    renderer.xr.setSession(session);
+                    arButton.style.display = 'none';
+
+                    // 参照空間の取得
+                    const xrReferenceSpace = await session.requestReferenceSpace('local');
+
+                    // メインループの開始
+                    renderer.setAnimationLoop((time, frame) => {
+                        if (!frame) return;
+
+                        // 検出された平面を取得
+                        const planes = frame.getDetectedPlanes(xrReferenceSpace);
+
+                        // 古い平面を削除
+                        planeMeshes.forEach((mesh, plane) => {
+                            if (!planes.includes(plane)) {
+                                scene.remove(mesh);
+                                mesh.geometry.dispose();
+                                mesh.material.dispose();
+                                planeMeshes.delete(plane);
+                            }
+                        });
+
+                        // 新しい平面を処理
+                        for (const plane of planes) {
+                            if (!planeMeshes.has(plane)) {
+                                // 新しい平面が検出されたら、その形状に合わせてメッシュを作成
+                                const planeGeometry = new THREE.PlaneGeometry(1, 1).fromBufferGeometry(new THREE.BufferGeometry().setFromPoints(plane.polygon.map(point => new THREE.Vector3(point.x, 0, point.z))));
+                                const planeMaterial = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff, transparent: true, opacity: 0.5 });
+                                const planeMesh = new THREE.Mesh(planeGeometry, planeMaterial);
+                                planeMeshes.set(plane, planeMesh);
+                                scene.add(planeMesh);
+                            }
+                            
+                            // 平面の姿勢を更新
+                            const planePose = frame.getPose(plane.planeSpace, xrReferenceSpace);
+                            if (planePose) {
+                                const mesh = planeMeshes.get(plane);
+                                mesh.matrix.fromArray(planePose.transform.matrix);
+                                mesh.matrix.decompose(mesh.position, mesh.quaternion, mesh.scale);
+                            }
+                        }
+
+                        renderer.render(scene, camera);
+                    });
+                } catch (e) {
+                    console.error("WebXR session failed:", e);
+                }
+            } else {
+                console.error("WebXR is not supported by this browser.");
             }
         }
 
+        // ------------------ リサイズ時の処理 ------------------
+        window.addEventListener('resize', onWindowResize, false);
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        function animate() {
-            renderer.setAnimationLoop(render);
-        }
-
-        function render(timestamp, frame) {
-            if (frame) {
-                const session = renderer.xr.getSession();
-
-                // `hit-test` は `render` ループの最初に一度だけリクエストする
-                if (!hitTestSourceRequested) {
-                    session.requestHitTestSource({ space: session.viewerSpace }).then(source => {
-                        hitTestSource = source;
-                    });
-                    hitTestSourceRequested = true;
-                }
-
-                if (hitTestSource) {
-                    const hitTestResults = frame.getHitTestResults(hitTestSource);
-                    
-                    if (hitTestResults.length > 0) {
-                        const hit = hitTestResults[0];
-                        reticle.visible = true;
-                        reticle.matrix.fromArray(hit.getPose(renderer.xr.getReferenceSpace()).transform.matrix);
-                    } else {
-                        reticle.visible = false;
-                    }
-                }
-                
-                // 平面検出のロジック
-                if (session.activeFeatures.has('plane-detection')) {
-                    const detectedPlanes = frame.getTrackedObjects('plane');
-
-                    // 認識された平面を描画する
-                    for (const trackedPlane of detectedPlanes) {
-                        // 新しく認識された平面をThree.jsのオブジェクトとして追加する
-                        if (!planes.includes(trackedPlane.plane)) {
-                            planes.push(trackedPlane.plane);
-                            
-                            const geometry = trackedPlane.plane.polygon.length > 0
-                                ? new THREE.BufferGeometry().setFromPoints(trackedPlane.plane.polygon)
-                                : new THREE.PlaneGeometry(1, 1); // fallback
-                            const material = new THREE.MeshBasicMaterial({
-                                color: 0xff0000,
-                                transparent: true,
-                                opacity: 0.3,
-                                side: THREE.DoubleSide
-                            });
-                            const planeMesh = new THREE.Mesh(geometry, material);
-                            planeMesh.matrixAutoUpdate = false;
-                            scene.add(planeMesh);
-                            
-                            // 姿勢を更新
-                            planeMesh.matrix.fromArray(trackedPlane.transform.matrix);
-                        }
-                    }
-                }
-            }
-            renderer.render(scene, camera);
-        }
+        // アプリケーションの開始
+        init();
     </script>
 </body>
 </html>

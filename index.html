@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR Controller Test</title>
+    <title>WebXR Both Controllers Test</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -23,7 +23,7 @@
         import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
         let camera, scene, renderer;
-        let controller1, controllerGrip1;
+        const controllers = [];
 
         init();
         animate();
@@ -40,18 +40,52 @@
 
             document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local'] }));
 
-            // コントローラーのモデルをロードするためのファクトリー
             const controllerModelFactory = new XRControllerModelFactory();
 
-            // コントローラーの設定
-            controller1 = renderer.xr.getController(0);
-            scene.add(controller1);
-
-            controllerGrip1 = renderer.xr.getControllerGrip(0);
+            // コントローラーを2つ取得
+            const controller1 = renderer.xr.getController(0);
+            const controllerGrip1 = renderer.xr.getControllerGrip(0);
             controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
-            scene.add(controllerGrip1);
+            scene.add(controller1, controllerGrip1);
+
+            const controller2 = renderer.xr.getController(1);
+            const controllerGrip2 = renderer.xr.getControllerGrip(1);
+            controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
+            scene.add(controller2, controllerGrip2);
+
+            // controllers配列にイベントリスナーを追加
+            controllers.push({ controller: controller1, grip: controllerGrip1, isSelecting: false });
+            controllers.push({ controller: controller2, grip: controllerGrip2, isSelecting: false });
+            
+            // コントローラーのボタンイベントを監視
+            controller1.addEventListener('selectstart', onSelectStart);
+            controller1.addEventListener('selectend', onSelectEnd);
+            controller2.addEventListener('selectstart', onSelectStart);
+            controller2.addEventListener('selectend', onSelectEnd);
 
             window.addEventListener('resize', onWindowResize);
+        }
+
+        function onSelectStart(event) {
+            const controller = event.target;
+            // コントローラーが押されたら色を明るくする
+            controller.children[0].material.color.set(0x00ff00); // 緑色に変更
+            
+            const controllerState = controllers.find(c => c.controller === controller);
+            if (controllerState) {
+                controllerState.isSelecting = true;
+            }
+        }
+
+        function onSelectEnd(event) {
+            const controller = event.target;
+            // ボタンが離されたら元の色に戻す
+            controller.children[0].material.color.set(0xffffff); // 白に戻す
+            
+            const controllerState = controllers.find(c => c.controller === controller);
+            if (controllerState) {
+                controllerState.isSelecting = false;
+            }
         }
 
         function onWindowResize() {

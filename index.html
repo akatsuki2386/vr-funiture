@@ -31,10 +31,15 @@
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
-            // シーンに光源を追加
+            // シーンに光源を追加する
             const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
             light.position.set(0.5, 1, 0.25);
             scene.add(light);
+
+            // DirectionalLight (太陽光のような光源)も追加して試す
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(1, 2, 3);
+            scene.add(directionalLight);
 
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setPixelRatio(window.devicePixelRatio);
@@ -67,7 +72,7 @@
                     if (!trackedPlanes.has(plane.uuid)) {
                         const geometry = new THREE.ShapeGeometry(createPlaneShape(plane.polygon));
                         const material = new THREE.MeshBasicMaterial({
-                            color: 0x00ff00, // 緑色
+                            color: 0x00ff00,
                             side: THREE.DoubleSide,
                             transparent: true,
                             opacity: 0.5

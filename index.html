@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR Manual Raycast</title>
+    <title>WebXR Placement Demo</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -24,8 +24,8 @@
 
         let camera, scene, renderer;
         let controller1;
-        let reticle;
         let raycaster;
+        let reticle;
         const placeablePlanes = [];
         const trackedPlanes = new Map();
 
@@ -48,9 +48,10 @@
 
             // コントローラー1（右）
             controller1 = renderer.xr.getController(0);
+            scene.add(controller1);
             const controllerGrip1 = renderer.xr.getControllerGrip(0);
             controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
-            scene.add(controller1, controllerGrip1);
+            scene.add(controllerGrip1);
 
             // レイキャストを可視化するための線
             const lineGeometry = new THREE.BufferGeometry().setFromPoints([
@@ -74,7 +75,7 @@
             scene.add(reticle);
 
             // オブジェクト配置イベント
-            controller1.addEventListener('selectstart', onSelect);
+            controller1.addEventListener('select', onSelect);
 
             window.addEventListener('resize', onWindowResize);
         }
@@ -102,8 +103,8 @@
 
         function render(time, frame) {
             if (frame) {
-                const detectedPlanes = frame.detectedPlanes;
                 const referenceSpace = renderer.xr.getReferenceSpace();
+                const detectedPlanes = frame.detectedPlanes;
 
                 // 検出された平面を更新
                 for (const plane of detectedPlanes) {
@@ -126,23 +127,23 @@
                 }
 
                 // レイキャストの更新
-                const controllerPos = new THREE.Vector3().setFromMatrixPosition(controller1.matrixWorld);
-                const controllerDir = new THREE.Vector3(0, 0, -1).applyQuaternion(controller1.quaternion);
+                if (controller1) {
+                    const controllerPos = new THREE.Vector3().setFromMatrixPosition(controller1.matrixWorld);
+                    const controllerDir = new THREE.Vector3(0, 0, -1).applyQuaternion(controller1.quaternion);
+                    raycaster.set(controllerPos, controllerDir);
 
-                raycaster.set(controllerPos, controllerDir);
+                    // レイキャストと平面との交差判定
+                    const intersects = raycaster.intersectObjects(placeablePlanes);
 
-                // レイキャストと平面との交差判定
-                const intersects = raycaster.intersectObjects(placeablePlanes);
-
-                if (intersects.length > 0) {
-                    reticle.visible = true;
-                    reticle.position.copy(intersects[0].point);
-                    reticle.quaternion.copy(intersects[0].object.quaternion);
-                } else {
-                    reticle.visible = false;
+                    if (intersects.length > 0) {
+                        reticle.visible = true;
+                        reticle.position.copy(intersects[0].point);
+                        reticle.quaternion.copy(intersects[0].object.quaternion);
+                    } else {
+                        reticle.visible = false;
+                    }
                 }
             }
-
             renderer.render(scene, camera);
         }
 

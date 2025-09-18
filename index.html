@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR AR Session Test</title>
+    <title>WebXR Controller Test</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -20,8 +20,10 @@
     <script type="module">
         import * as THREE from 'three';
         import { ARButton } from 'three/addons/webxr/ARButton.js';
+        import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
         let camera, scene, renderer;
+        let controller1, controllerGrip1;
 
         init();
         animate();
@@ -37,6 +39,17 @@
             document.body.appendChild(renderer.domElement);
 
             document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local'] }));
+
+            // コントローラーのモデルをロードするためのファクトリー
+            const controllerModelFactory = new XRControllerModelFactory();
+
+            // コントローラーの設定
+            controller1 = renderer.xr.getController(0);
+            scene.add(controller1);
+
+            controllerGrip1 = renderer.xr.getControllerGrip(0);
+            controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
+            scene.add(controllerGrip1);
 
             window.addEventListener('resize', onWindowResize);
         }

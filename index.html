@@ -39,6 +39,7 @@
         let hitTestSource = null;
         let hitTestSourceRequested = false;
         let lasers = [];
+        let planes = [];
 
         init();
         animate();
@@ -56,8 +57,8 @@
             renderer.xr.enabled = true;
             container.appendChild(renderer.domElement);
 
-            // 必須機能をより具体的に指定
-            const arButton = ARButton.createButton(renderer, { requiredFeatures: ['hit-test', 'local-floor'] });
+            // 必須機能に 'plane-detection' を追加
+            const arButton = ARButton.createButton(renderer, { requiredFeatures: ['hit-test', 'local-floor', 'plane-detection'] });
             document.body.appendChild(arButton);
 
             const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
@@ -106,7 +107,6 @@
         }
 
         function onSelectStart(event) {
-            const controller = event.target;
             if (reticle.visible) {
                 const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
                 const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
@@ -128,70 +128,59 @@
         }
 
         function render(timestamp, frame) {
-                if (frame) {
-                    if (!hitTestSourceRequested) {
-                        const session = renderer.xr.getSession();
-                        session.requestHitTestSource({ space: session.viewerSpace })
-                            .then(source => {
-                                hitTestSource = source;
-                            });
-                        hitTestSourceRequested = true;
+            if (frame) {
+                const session = renderer.xr.getSession();
+
+                // `hit-test` は `render` ループの最初に一度だけリクエストする
+                if (!hitTestSourceRequested) {
+                    session.requestHitTestSource({ space: session.viewerSpace }).then(source => {
+                        hitTestSource = source;
+                    });
+                    hitTestSourceRequested = true;
+                }
+
+                if (hitTestSource) {
+                    const hitTestResults = frame.getHitTestResults(hitTestSource);
+                    
+                    if (hitTestResults.length > 0) {
+                        const hit = hitTestResults[0];
+                        reticle.visible = true;
+                        reticle.matrix.fromArray(hit.getPose(renderer.xr.getReferenceSpace()).transform.matrix);
+                    } else {
+                        reticle.visible = false;
                     }
+                }
+                
+                // 平面検出のロジック
+                if (session.activeFeatures.has('plane-detection')) {
+                    const detectedPlanes = frame.getTrackedObjects('plane');
 
-                    if (hitTestSource) {
-                        const hitTestResults = frame.getHitTestResults(hitTestSource);
-                        let hit = null;
-
-                        // コントローラーがアクティブな場合は、そのヒットテスト結果を使用
-                        if (controllerGrip1 && controllerGrip1.visible) {
-                            const raycaster1 = new THREE.Raycaster();
-                            raycaster1.setFromXRController(controller1, renderer.xr.getReferenceSpace());
-                            const controllerHitResults1 = renderer.xr.getSession().requestHitTest(raycaster1.ray, renderer.xr.getReferenceSpace());
-
-                            const raycaster2 = new THREE.Raycaster();
-                            raycaster2.setFromXRController(controller2, renderer.xr.getReferenceSpace());
-                            const controllerHitResults2 = renderer.xr.getSession().requestHitTest(raycaster2.ray, renderer.xr.getReferenceSpace());
+                    // 認識された平面を描画する
+                    for (const trackedPlane of detectedPlanes) {
+                        // 新しく認識された平面をThree.jsのオブジェクトとして追加する
+                        if (!planes.includes(trackedPlane.plane)) {
+                            planes.push(trackedPlane.plane);
                             
-                            if (controllerHitResults1.length > 0) {
-                                hit = controllerHitResults1[0];
-                                const controllerPose = hit.getPose(renderer.xr.getReferenceSpace());
-                                lasers[0].scale.y = controllerPose.transform.position.distanceTo(controller1.position);
-                                lasers[0].visible = true;
-                            } else {
-                                lasers[0].scale.y = 10;
-                                lasers[0].visible = true;
-                            }
+                            const geometry = trackedPlane.plane.polygon.length > 0
+                                ? new THREE.BufferGeometry().setFromPoints(trackedPlane.plane.polygon)
+                                : new THREE.PlaneGeometry(1, 1); // fallback
+                            const material = new THREE.MeshBasicMaterial({
+                                color: 0xff0000,
+                                transparent: true,
+                                opacity: 0.3,
+                                side: THREE.DoubleSide
+                            });
+                            const planeMesh = new THREE.Mesh(geometry, material);
+                            planeMesh.matrixAutoUpdate = false;
+                            scene.add(planeMesh);
                             
-                            if (controllerHitResults2.length > 0) {
-                                hit = controllerHitResults2[0];
-                                const controllerPose = hit.getPose(renderer.xr.getReferenceSpace());
-                                lasers[1].scale.y = controllerPose.transform.position.distanceTo(controller2.position);
-                                lasers[1].visible = true;
-                            } else {
-                                lasers[1].scale.y = 10;
-                                lasers[1].visible = true;
-                            }
-                        } else if (hitTestResults.length > 0) {
-                            // コントローラーがない場合は、ビューポートの中心からのヒットテスト結果を使用
-                            hit = hitTestResults[0];
-                            if (lasers[0]) lasers[0].visible = false;
-                            if (lasers[1]) lasers[1].visible = false;
-                        } else {
-                            // どちらの入力もヒットしない場合
-                            if (lasers[0]) lasers[0].visible = false;
-                            if (lasers[1]) lasers[1].visible = false;
-                        }
-                        
-                        if (hit) {
-                            reticle.visible = true;
-                            const pose = hit.getPose(renderer.xr.getReferenceSpace());
-                            reticle.matrix.fromArray(pose.transform.matrix);
-                        } else {
-                            reticle.visible = false;
+                            // 姿勢を更新
+                            planeMesh.matrix.fromArray(trackedPlane.transform.matrix);
                         }
                     }
                 }
-                renderer.render(scene, camera);
+            }
+            renderer.render(scene, camera);
         }
     </script>
 </body>

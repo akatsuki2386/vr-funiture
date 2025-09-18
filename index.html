@@ -31,15 +31,10 @@
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
-            // シーンに光源を追加する
+            // シーンに光源を追加
             const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
             light.position.set(0.5, 1, 0.25);
             scene.add(light);
-
-            // DirectionalLight (太陽光のような光源)も追加して試す
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            directionalLight.position.set(1, 2, 3);
-            scene.add(directionalLight);
 
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setPixelRatio(window.devicePixelRatio);
@@ -70,7 +65,7 @@
                 // 検出された平面を処理
                 for (const plane of detectedPlanes) {
                     if (!trackedPlanes.has(plane.uuid)) {
-                        const geometry = new THREE.ShapeGeometry(createPlaneShape(plane.polygon));
+                        const geometry = new THREE.PlaneGeometry(1, 1);
                         const material = new THREE.MeshBasicMaterial({
                             color: 0x00ff00,
                             side: THREE.DoubleSide,
@@ -83,20 +78,16 @@
                     }
                     
                     const mesh = trackedPlanes.get(plane.uuid);
-                    mesh.matrix.fromArray(plane.getPose(referenceSpace).transform.matrix);
+                    const pose = plane.getPose(referenceSpace);
+                    if (pose) {
+                        mesh.matrix.fromArray(pose.transform.matrix);
+                        mesh.scale.set(plane.extent.width, plane.extent.height, 1);
+                        // メッシュをわずかに持ち上げて見えるようにする
+                        mesh.position.y += 0.005; // 0.5cmほど持ち上げる
+                    }
                 }
             }
-
             renderer.render(scene, camera);
-        }
-
-        function createPlaneShape(points) {
-            const shape = new THREE.Shape();
-            shape.moveTo(points[0].x, points[0].z);
-            for (let i = 1; i < points.length; i++) {
-                shape.lineTo(points[i].x, points[i].z);
-            }
-            return shape;
         }
     </script>
 </body>

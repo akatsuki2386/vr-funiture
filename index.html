@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR Plane Detection Demo</title>
+    <title>WebXR Controller Raycast</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -20,9 +20,11 @@
     <script type="module">
         import * as THREE from 'three';
         import { ARButton } from 'three/addons/webxr/ARButton.js';
+        import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
         let camera, scene, renderer;
-        let trackedPlanes = new Map();
+        let controller1, controller2;
+        let controllerGrip1, controllerGrip2;
 
         init();
         animate();
@@ -31,18 +33,40 @@
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
-            // シーンに光源を追加
-            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-            light.position.set(0.5, 1, 0.25);
-            scene.add(light);
-
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.xr.enabled = true;
             document.body.appendChild(renderer.domElement);
 
-            document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local', 'plane-detection'] }));
+            document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local'] }));
+
+            const controllerModelFactory = new XRControllerModelFactory();
+
+            // コントローラー1（右）
+            controller1 = renderer.xr.getController(0);
+            controllerGrip1 = renderer.xr.getControllerGrip(0);
+            controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
+            scene.add(controller1, controllerGrip1);
+
+            // コントローラー2（左）
+            controller2 = renderer.xr.getController(1);
+            controllerGrip2 = renderer.xr.getControllerGrip(1);
+            controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
+            scene.add(controller2, controllerGrip2);
+            
+            // レイキャストを可視化するための線
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(0, 0, -5) // 長さ5の線
+            ]);
+            const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff }); // 白い線
+            
+            const line1 = new THREE.Line(lineGeometry, lineMaterial);
+            controller1.add(line1);
+
+            const line2 = new THREE.Line(lineGeometry, lineMaterial);
+            controller2.add(line2);
 
             window.addEventListener('resize', onWindowResize);
         }
@@ -57,40 +81,8 @@
             renderer.setAnimationLoop(render);
         }
 
-        function render(time, frame) {
-            if (frame) {
-                const referenceSpace = renderer.xr.getReferenceSpace();
-                const detectedPlanes = frame.detectedPlanes;
-
-                for (const plane of detectedPlanes) {
-                    if (!trackedPlanes.has(plane.uuid)) {
-                        const geometry = new THREE.ShapeGeometry(createPlaneShape(plane.polygon));
-                        const material = new THREE.MeshBasicMaterial({
-                            color: 0x00ff00, // 緑色
-                            side: THREE.DoubleSide,
-                            transparent: true,
-                            opacity: 0.5
-                        });
-                        const mesh = new THREE.Mesh(geometry, material);
-                        scene.add(mesh);
-                        trackedPlanes.set(plane.uuid, mesh);
-                    }
-                    
-                    const mesh = trackedPlanes.get(plane.uuid);
-                    mesh.matrix.fromArray(plane.getPose(referenceSpace).transform.matrix);
-                }
-            }
-
+        function render() {
             renderer.render(scene, camera);
-        }
-
-        function createPlaneShape(points) {
-            const shape = new THREE.Shape();
-            shape.moveTo(points[0].x, points[0].z);
-            for (let i = 1; i < points.length; i++) {
-                shape.lineTo(points[i].x, points[i].z);
-            }
-            return shape;
         }
     </script>
 </body>

@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR Both Controllers Test</title>
+    <title>WebXR Placement Demo</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -23,7 +23,10 @@
         import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
         let camera, scene, renderer;
-        const controllers = [];
+        let controller1, controller2;
+        let reticle; // レイキャストがヒットした場所のマーカー
+        let hitTestSource = null;
+        let hitTestSourceRequested = false;
 
         init();
         animate();
@@ -38,53 +41,53 @@
             renderer.xr.enabled = true;
             document.body.appendChild(renderer.domElement);
 
-            document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local'] }));
+            document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local', 'hit-test'] }));
 
+            // コントローラーモデルファクトリー
             const controllerModelFactory = new XRControllerModelFactory();
 
-            // コントローラーを2つ取得
-            const controller1 = renderer.xr.getController(0);
+            // コントローラー1 (右)
+            controller1 = renderer.xr.getController(0);
             const controllerGrip1 = renderer.xr.getControllerGrip(0);
             controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
             scene.add(controller1, controllerGrip1);
+            controller1.addEventListener('select', onSelect);
 
-            const controller2 = renderer.xr.getController(1);
+            // コントローラー2 (左)
+            controller2 = renderer.xr.getController(1);
             const controllerGrip2 = renderer.xr.getControllerGrip(1);
             controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
             scene.add(controller2, controllerGrip2);
 
-            // controllers配列にイベントリスナーを追加
-            controllers.push({ controller: controller1, grip: controllerGrip1, isSelecting: false });
-            controllers.push({ controller: controller2, grip: controllerGrip2, isSelecting: false });
-            
-            // コントローラーのボタンイベントを監視
-            controller1.addEventListener('selectstart', onSelectStart);
-            controller1.addEventListener('selectend', onSelectEnd);
-            controller2.addEventListener('selectstart', onSelectStart);
-            controller2.addEventListener('selectend', onSelectEnd);
+            // レイキャストを視覚化するための線
+            const line = new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)]),
+                new THREE.LineBasicMaterial({ color: 0xffffff })
+            );
+            line.scale.z = 5;
+            controller1.add(line.clone());
+            controller2.add(line.clone());
+
+            // レイキャストが当たった場所に表示するレティクル（ターゲットマーカー）
+            reticle = new THREE.Mesh(
+                new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
+                new THREE.MeshBasicMaterial()
+            );
+            reticle.matrixAutoUpdate = false;
+            reticle.visible = false;
+            scene.add(reticle);
 
             window.addEventListener('resize', onWindowResize);
         }
 
-        function onSelectStart(event) {
-            const controller = event.target;
-            // コントローラーが押されたら色を明るくする
-            controller.children[0].material.color.set(0x00ff00); // 緑色に変更
-            
-            const controllerState = controllers.find(c => c.controller === controller);
-            if (controllerState) {
-                controllerState.isSelecting = true;
-            }
-        }
-
-        function onSelectEnd(event) {
-            const controller = event.target;
-            // ボタンが離されたら元の色に戻す
-            controller.children[0].material.color.set(0xffffff); // 白に戻す
-            
-            const controllerState = controllers.find(c => c.controller === controller);
-            if (controllerState) {
-                controllerState.isSelecting = false;
+        function onSelect() {
+            if (reticle.visible) {
+                // レティクルの位置に新しい立方体を配置
+                const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+                const material = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // 赤い立方体
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.setFromMatrixPosition(reticle.matrix);
+                scene.add(mesh);
             }
         }
 
@@ -98,7 +101,36 @@
             renderer.setAnimationLoop(render);
         }
 
-        function render() {
+        function render(time, frame) {
+            if (frame) {
+                const session = renderer.xr.getSession();
+
+                if (!hitTestSourceRequested) {
+                    session.requestReferenceSpace('viewer').then(function (referenceSpace) {
+                        session.requestHitTestSource({ space: referenceSpace }).then(function (source) {
+                            hitTestSource = source;
+                        });
+                    });
+                    session.addEventListener('end', function () {
+                        hitTestSourceRequested = false;
+                        hitTestSource = null;
+                    });
+                    hitTestSourceRequested = true;
+                }
+
+                if (hitTestSource) {
+                    const hitTestResults = frame.getHitTestResults(hitTestSource);
+
+                    if (hitTestResults.length > 0) {
+                        const hit = hitTestResults[0];
+                        reticle.visible = true;
+                        reticle.matrix.fromArray(hit.getPose(renderer.xr.getReferenceSpace()).transform.matrix);
+                    } else {
+                        reticle.visible = false;
+                    }
+                }
+            }
+
             renderer.render(scene, camera);
         }
     </script>

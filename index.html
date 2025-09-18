@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR Plane Detection Test</title>
+    <title>WebXR Plane Detection Test - Y-Axis Lift</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -31,7 +31,6 @@
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
-            // シーンに光源を追加
             const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
             light.position.set(0.5, 1, 0.25);
             scene.add(light);
@@ -62,7 +61,6 @@
                 const referenceSpace = renderer.xr.getReferenceSpace();
                 const detectedPlanes = frame.detectedPlanes;
 
-                // 検出された平面を処理
                 for (const plane of detectedPlanes) {
                     if (!trackedPlanes.has(plane.uuid)) {
                         const geometry = new THREE.PlaneGeometry(1, 1);
@@ -82,12 +80,21 @@
                     if (pose) {
                         mesh.matrix.fromArray(pose.transform.matrix);
                         mesh.scale.set(plane.extent.width, plane.extent.height, 1);
-                        // メッシュをわずかに持ち上げて見えるようにする
-                        mesh.position.y += 0.005; // 0.5cmほど持ち上げる
+                        // Y軸を0.05（5cm）持ち上げる
+                        mesh.position.y += 0.05;
                     }
                 }
             }
             renderer.render(scene, camera);
+        }
+
+        function createPlaneShape(points) {
+            const shape = new THREE.Shape();
+            shape.moveTo(points[0].x, points[0].z);
+            for (let i = 1; i < points.length; i++) {
+                shape.lineTo(points[i].x, points[i].z);
+            }
+            return shape;
         }
     </script>
 </body>

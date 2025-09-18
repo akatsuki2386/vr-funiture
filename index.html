@@ -31,6 +31,11 @@
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
+            // シーンに光源を追加
+            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+            light.position.set(0.5, 1, 0.25);
+            scene.add(light);
+
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -57,11 +62,8 @@
                 const referenceSpace = renderer.xr.getReferenceSpace();
                 const detectedPlanes = frame.detectedPlanes;
 
-                // 検出された平面を処理
                 for (const plane of detectedPlanes) {
-                    // 新しい平面か、すでに追跡している平面かをチェック
                     if (!trackedPlanes.has(plane.uuid)) {
-                        // 新しい平面を可視化
                         const geometry = new THREE.ShapeGeometry(createPlaneShape(plane.polygon));
                         const material = new THREE.MeshBasicMaterial({
                             color: 0x00ff00, // 緑色
@@ -75,7 +77,6 @@
                     }
                     
                     const mesh = trackedPlanes.get(plane.uuid);
-                    // 平面の位置と向きを更新
                     mesh.matrix.fromArray(plane.getPose(referenceSpace).transform.matrix);
                 }
             }
@@ -85,7 +86,7 @@
 
         function createPlaneShape(points) {
             const shape = new THREE.Shape();
-            shape.moveTo(points[0].x, points[0].z); // WebXRの平面はY軸が上方向
+            shape.moveTo(points[0].x, points[0].z);
             for (let i = 1; i < points.length; i++) {
                 shape.lineTo(points[i].x, points[i].z);
             }

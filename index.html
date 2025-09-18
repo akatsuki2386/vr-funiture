@@ -14,28 +14,9 @@
             cursor: pointer;
             z-index: 1000;
         }
-        #ar-message {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: white;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 20px;
-            border-radius: 10px;
-            font-size: 20px;
-            text-align: center;
-            z-index: 999;
-            display: none;
-        }
     </style>
 </head>
 <body>
-    <button id="ar-button">Start AR</button>
-    <div id="ar-message">
-        <p>平面を認識中です。</p>
-        <p>床やテーブルなど、平らな場所を見渡してください。</p>
-    </div>
     <script type="importmap">
         {
             "imports": {
@@ -58,8 +39,7 @@
         let hitTestSource = null;
         let hitTestSourceRequested = false;
         let lasers = [];
-        let arMessageElement;
-        
+
         init();
         animate();
 
@@ -75,20 +55,10 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.xr.enabled = true;
             container.appendChild(renderer.domElement);
-            
-            arMessageElement = document.getElementById('ar-message');
-            
-            const arButton = ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] });
+
+            // 必須機能をより具体的に指定
+            const arButton = ARButton.createButton(renderer, { requiredFeatures: ['hit-test', 'local-floor'] });
             document.body.appendChild(arButton);
-            
-            // ARセッションが開始されたときにメッセージを表示するイベントリスナーを追加
-            renderer.xr.addEventListener('sessionstart', () => {
-                arMessageElement.style.display = 'block';
-            });
-            // ARセッションが終了したときにメッセージを非表示にするイベントリスナーを追加
-            renderer.xr.addEventListener('sessionend', () => {
-                arMessageElement.style.display = 'none';
-            });
 
             const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
             light.position.set(0.5, 1, 0.25);
@@ -158,68 +128,70 @@
         }
 
         function render(timestamp, frame) {
-            if (frame) {
-                if (!hitTestSourceRequested) {
-                    const session = renderer.xr.getSession();
-                    session.requestHitTestSource({ space: session.viewerSpace })
-                        .then(source => {
-                            hitTestSource = source;
-                        });
-                    hitTestSourceRequested = true;
-                }
+                if (frame) {
+                    if (!hitTestSourceRequested) {
+                        const session = renderer.xr.getSession();
+                        session.requestHitTestSource({ space: session.viewerSpace })
+                            .then(source => {
+                                hitTestSource = source;
+                            });
+                        hitTestSourceRequested = true;
+                    }
 
-                if (hitTestSource) {
-                    const hitTestResults = frame.getHitTestResults(hitTestSource);
-                    let hit = null;
-                    
-                    if (controllerGrip1 && controllerGrip1.visible) {
-                        const raycaster1 = new THREE.Raycaster();
-                        raycaster1.setFromXRController(controller1, renderer.xr.getReferenceSpace());
-                        const controllerHitResults1 = renderer.xr.getSession().requestHitTest(raycaster1.ray, renderer.xr.getReferenceSpace());
+                    if (hitTestSource) {
+                        const hitTestResults = frame.getHitTestResults(hitTestSource);
+                        let hit = null;
 
-                        const raycaster2 = new THREE.Raycaster();
-                        raycaster2.setFromXRController(controller2, renderer.xr.getReferenceSpace());
-                        const controllerHitResults2 = renderer.xr.getSession().requestHitTest(raycaster2.ray, renderer.xr.getReferenceSpace());
+                        // コントローラーがアクティブな場合は、そのヒットテスト結果を使用
+                        if (controllerGrip1 && controllerGrip1.visible) {
+                            const raycaster1 = new THREE.Raycaster();
+                            raycaster1.setFromXRController(controller1, renderer.xr.getReferenceSpace());
+                            const controllerHitResults1 = renderer.xr.getSession().requestHitTest(raycaster1.ray, renderer.xr.getReferenceSpace());
 
-                        if (controllerHitResults1.length > 0) {
-                            hit = controllerHitResults1[0];
-                            const controllerPose = hit.getPose(renderer.xr.getReferenceSpace());
-                            lasers[0].scale.y = controllerPose.transform.position.distanceTo(controller1.position);
-                            lasers[0].visible = true;
+                            const raycaster2 = new THREE.Raycaster();
+                            raycaster2.setFromXRController(controller2, renderer.xr.getReferenceSpace());
+                            const controllerHitResults2 = renderer.xr.getSession().requestHitTest(raycaster2.ray, renderer.xr.getReferenceSpace());
+                            
+                            if (controllerHitResults1.length > 0) {
+                                hit = controllerHitResults1[0];
+                                const controllerPose = hit.getPose(renderer.xr.getReferenceSpace());
+                                lasers[0].scale.y = controllerPose.transform.position.distanceTo(controller1.position);
+                                lasers[0].visible = true;
+                            } else {
+                                lasers[0].scale.y = 10;
+                                lasers[0].visible = true;
+                            }
+                            
+                            if (controllerHitResults2.length > 0) {
+                                hit = controllerHitResults2[0];
+                                const controllerPose = hit.getPose(renderer.xr.getReferenceSpace());
+                                lasers[1].scale.y = controllerPose.transform.position.distanceTo(controller2.position);
+                                lasers[1].visible = true;
+                            } else {
+                                lasers[1].scale.y = 10;
+                                lasers[1].visible = true;
+                            }
+                        } else if (hitTestResults.length > 0) {
+                            // コントローラーがない場合は、ビューポートの中心からのヒットテスト結果を使用
+                            hit = hitTestResults[0];
+                            if (lasers[0]) lasers[0].visible = false;
+                            if (lasers[1]) lasers[1].visible = false;
                         } else {
-                            lasers[0].scale.y = 10;
-                            lasers[0].visible = true;
+                            // どちらの入力もヒットしない場合
+                            if (lasers[0]) lasers[0].visible = false;
+                            if (lasers[1]) lasers[1].visible = false;
                         }
                         
-                        if (controllerHitResults2.length > 0) {
-                            hit = controllerHitResults2[0];
-                            const controllerPose = hit.getPose(renderer.xr.getReferenceSpace());
-                            lasers[1].scale.y = controllerPose.transform.position.distanceTo(controller2.position);
-                            lasers[1].visible = true;
+                        if (hit) {
+                            reticle.visible = true;
+                            const pose = hit.getPose(renderer.xr.getReferenceSpace());
+                            reticle.matrix.fromArray(pose.transform.matrix);
                         } else {
-                            lasers[1].scale.y = 10;
-                            lasers[1].visible = true;
+                            reticle.visible = false;
                         }
-                    } else if (hitTestResults.length > 0) {
-                        hit = hitTestResults[0];
-                        if (lasers[0]) lasers[0].visible = false;
-                        if (lasers[1]) lasers[1].visible = false;
-                    } else {
-                        if (lasers[0]) lasers[0].visible = false;
-                        if (lasers[1]) lasers[1].visible = false;
-                    }
-                    
-                    if (hit) {
-                        reticle.visible = true;
-                        const pose = hit.getPose(renderer.xr.getReferenceSpace());
-                        reticle.matrix.fromArray(pose.transform.matrix);
-                        arMessageElement.style.display = 'none';
-                    } else {
-                        reticle.visible = false;
                     }
                 }
-            }
-            renderer.render(scene, camera);
+                renderer.render(scene, camera);
         }
     </script>
 </body>

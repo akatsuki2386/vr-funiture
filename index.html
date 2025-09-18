@@ -3,15 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebXR Passthrough Placement Demo</title>
+    <title>Simple WebXR VR Demo</title>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            color: white;
-            font-family: sans-serif;
-            text-align: center;
-        }
+        body { margin: 0; overflow: hidden; }
         #info {
             position: absolute;
             top: 0;
@@ -19,6 +13,9 @@
             width: 100%;
             padding: 1rem;
             background: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-family: sans-serif;
+            text-align: center;
             z-index: 10;
         }
         #startButton {
@@ -32,31 +29,21 @@
     <div id="info">
         <p>
             VRゴーグルを装着してください。<br>
-            「VRスタート」ボタンを押してパススルーを開始します。<br>
-            コントローラーのトリガーを引くと、レイキャストが当たった場所にキューブが配置されます。
+            「VRスタート」ボタンを押すと、仮想空間に入ります。
         </p>
         <button id="startButton">VRスタート</button>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        // Three.jsのモジュールがグローバルスコープで利用できるように調整
-        // Three.js r128では、グローバルスコープにTHREEオブジェクトが作成されます
-        // const THREE = window.THREE; // これは通常不要です
-
-        let scene, camera, renderer, controller, xrSession, xrReferenceSpace;
-        let raycaster;
-        const placedObjects = [];
-        const tempMatrix = new THREE.Matrix4();
+        let scene, camera, renderer, xrSession;
 
         // VRスタートボタンのイベントリスナー
         document.getElementById('startButton').addEventListener('click', async () => {
             if (navigator.xr) {
                 try {
-                    // 'immersive-ar'セッションを要求
-                    xrSession = await navigator.xr.requestSession('immersive-ar', {
-                        optionalFeatures: ['dom-overlay', 'hit-test']
-                    });
+                    // 'immersive-vr'セッションを要求
+                    xrSession = await navigator.xr.requestSession('immersive-vr');
                     
                     // レンダラー、シーン、カメラのセットアップ
                     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -68,23 +55,16 @@
                     scene = new THREE.Scene();
                     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
                     
-                    xrReferenceSpace = await xrSession.requestReferenceSpace('local');
+                    // シンプルな仮想空間の作成
+                    // 青空
+                    scene.background = new THREE.Color(0x87ceeb);
 
-                    // コントローラーのセットアップ
-                    controller = renderer.xr.getController(0);
-                    scene.add(controller);
-                    
-                    // レイキャストの準備
-                    raycaster = new THREE.Raycaster();
-
-                    // レイを視覚化するためのLineをコントローラーに追加
-                    const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)]);
-                    const line = new THREE.Line(geometry);
-                    line.scale.z = 5; // レイの長さ
-                    controller.add(line);
-
-                    // コントローラーのボタンイベントをリッスン
-                    controller.addEventListener('selectstart', onSelectStart);
+                    // 床
+                    const floorGeometry = new THREE.PlaneGeometry(100, 100);
+                    const floorMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+                    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+                    floor.rotation.x = Math.PI / 2;
+                    scene.add(floor);
 
                     // レンダリングループを開始
                     renderer.setAnimationLoop(onRender);
@@ -98,39 +78,10 @@
             }
         });
 
-        // コントローラーのトリガーが引かれたときのイベント
-        function onSelectStart() {
-            // レイキャストの方向と位置を更新
-            tempMatrix.identity().extractRotation(controller.matrixWorld);
-            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-
-            // レイキャストの衝突判定はここでは行わず、常に新しいオブジェクトを配置
-            placeCube();
-        }
-
-        // キューブを配置する関数
-        function placeCube() {
-            const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1); // 10cmの立方体
-            const material = new THREE.MeshStandardMaterial({
-                color: Math.random() * 0xffffff,
-                transparent: true,
-                opacity: 0.8
-            });
-            const cube = new THREE.Mesh(geometry, material);
-
-            // レイキャストの方向と位置に基づいて、オブジェクトをコントローラーから少し離れた位置に配置
-            const position = new THREE.Vector3(0, 0, -1).applyMatrix4(controller.matrixWorld);
-            cube.position.copy(position);
-
-            scene.add(cube);
-            placedObjects.push(cube);
-        }
-
         // レンダリングループ
         function onRender(timestamp, frame) {
             if (renderer.xr.isPresenting) {
-                // VR/ARセッション中はレンダラーが自動的にカメラを更新
+                // VRセッション中はレンダラーがカメラを自動的に更新
                 renderer.render(scene, camera);
             }
         }

@@ -1,99 +1,127 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple WebXR VR Demo</title>
+    <meta charset="utf-8">
+    <title>WebXR Passthrough Placement Demo</title>
     <style>
-        body { margin: 0; overflow: hidden; }
-        #info {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            padding: 1rem;
-            background: rgba(0, 0, 0, 0.5);
-            color: white;
-            font-family: sans-serif;
-            text-align: center;
-            z-index: 10;
-        }
-        #startButton {
-            font-size: 1.2rem;
-            padding: 0.5rem 1rem;
-            cursor: pointer;
-        }
+        body { margin: 0; }
+        canvas { display: block; }
     </style>
 </head>
 <body>
-    <div id="info">
-        <p>
-            VRゴーグルを装着してください。<br>
-            「VRスタート」ボタンを押すと、仮想空間に入ります。
-        </p>
-        <button id="startButton">VRスタート</button>
-    </div>
+    <script type="importmap">
+        {
+          "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.155.0/examples/jsm/"
+          }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { ARButton } from 'three/addons/webxr/ARButton.js';
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script>
-        let scene, camera, renderer, xrSession;
+        let camera, scene, renderer;
+        let controller1;
+        let raycaster;
 
-        // VRスタートボタンのイベントリスナー
-        document.getElementById('startButton').addEventListener('click', async () => {
-            if (navigator.xr) {
-                try {
-                    // 'immersive-vr'セッションを要求
-                    xrSession = await navigator.xr.requestSession('immersive-vr');
-                    
-                    // レンダラー、シーン、カメラのセットアップ
-                    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-                    renderer.setSize(window.innerWidth, window.innerHeight);
-                    document.body.appendChild(renderer.domElement);
-                    renderer.xr.enabled = true;
-                    renderer.xr.setSession(xrSession);
+        // オブジェクトを配置するためのマーカー
+        const reticle = new THREE.Mesh(
+            new THREE.RingGeometry(0.15, 0.2, 32).rotateX(- Math.PI / 2),
+            new THREE.MeshBasicMaterial()
+        );
+        reticle.matrixAutoUpdate = false;
+        reticle.visible = false;
 
-                    scene = new THREE.Scene();
-                    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-                    
-                    // シンプルな仮想空間の作成
-                    // 青空
-                    scene.background = new THREE.Color(0x87ceeb);
+        init();
+        animate();
 
-                    // 床
-                    const floorGeometry = new THREE.PlaneGeometry(100, 100);
-                    const floorMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
-                    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-                    floor.rotation.x = Math.PI / 2;
-                    scene.add(floor);
+        function init() {
+            // シーンとカメラ
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
-                    // レンダリングループを開始
-                    renderer.setAnimationLoop(onRender);
+            // レンダラー
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
+            document.body.appendChild(renderer.domElement);
 
-                } catch (error) {
-                    console.error('WebXR session failed:', error);
-                    alert('WebXRセッションを開始できませんでした。VRゴーグルが接続されているか確認してください。');
-                }
-            } else {
-                alert('このブラウザはWebXRに対応していません。Meta Quest 3sのブラウザでお試しください。');
-            }
-        });
+            // ARセッションを開始するためのボタン
+            document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test', 'anchors'] }));
 
-        // レンダリングループ
-        function onRender(timestamp, frame) {
-            if (renderer.xr.isPresenting) {
-                // VRセッション中はレンダラーがカメラを自動的に更新
-                renderer.render(scene, camera);
+            // コントローラー
+            controller1 = renderer.xr.getController(0);
+            scene.add(controller1);
+
+            // レイキャスト
+            raycaster = new THREE.Raycaster();
+
+            // コントローラーのレイを視覚化
+            const line = new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(0, 0, -1)
+                ])
+            );
+            line.name = 'line';
+            line.scale.z = 5;
+            controller1.add(line);
+
+            // レイキャストがヒットした場所に表示するマーカーを追加
+            scene.add(reticle);
+
+            // オブジェクト配置イベント
+            controller1.addEventListener('selectstart', onSelect);
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onSelect() {
+            if (reticle.visible) {
+                // レイキャストがヒットした場所に新しい立方体を追加
+                const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+                const material = new THREE.MeshBasicMaterial({ color: 0xffffff * Math.random() });
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.setFromMatrixPosition(reticle.matrix);
+                scene.add(mesh);
             }
         }
-        
-        // ウィンドウサイズ変更時のリサイズ処理
-        window.addEventListener('resize', () => {
-            if (camera && renderer) {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            renderer.setAnimationLoop(render);
+        }
+
+        function render(time, frame) {
+            if (frame) {
+                const session = renderer.xr.getSession();
+
+                // レイキャストが現実空間の平面に当たったかを検出
+                const referenceSpace = renderer.xr.getReferenceSpace();
+                const hitTestResults = frame.getHitTestResults(session.hitTestSource);
+
+                if (hitTestResults.length) {
+                    const hit = hitTestResults[0];
+                    reticle.visible = true;
+                    reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
+                } else {
+                    reticle.visible = false;
+                }
             }
-        });
+
+            // コントローラーの位置と向きを更新
+            if (controller1) {
+                controller1.matrix.fromArray(controller1.getPose(renderer.xr.getReferenceSpace()).transform.matrix);
+            }
+            renderer.render(scene, camera);
+        }
     </script>
 </body>
 </html>

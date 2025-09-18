@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR Pointer Placement</title>
+    <title>WebXR Manual Raycast</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -23,10 +23,11 @@
         import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
         let camera, scene, renderer;
-        let controller1, controller2;
+        let controller1;
         let reticle;
-        let hitTestSource = null;
-        let hitTestSourceRequested = false;
+        let raycaster;
+        const placeablePlanes = [];
+        const trackedPlanes = new Map();
 
         init();
         animate();
@@ -41,7 +42,7 @@
             renderer.xr.enabled = true;
             document.body.appendChild(renderer.domElement);
 
-            document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local', 'hit-test'] }));
+            document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local', 'plane-detection'] }));
 
             const controllerModelFactory = new XRControllerModelFactory();
 
@@ -51,35 +52,42 @@
             controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
             scene.add(controller1, controllerGrip1);
 
-            // コントローラー2（左）
-            controller2 = renderer.xr.getController(1);
-            const controllerGrip2 = renderer.xr.getControllerGrip(1);
-            controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
-            scene.add(controller2, controllerGrip2);
-            
             // レイキャストを可視化するための線
             const lineGeometry = new THREE.BufferGeometry().setFromPoints([
                 new THREE.Vector3(0, 0, 0),
                 new THREE.Vector3(0, 0, -5)
             ]);
             const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
-            
             const line1 = new THREE.Line(lineGeometry, lineMaterial);
             controller1.add(line1);
 
-            const line2 = new THREE.Line(lineGeometry, lineMaterial);
-            controller2.add(line2);
+            // レイキャスト
+            raycaster = new THREE.Raycaster();
 
-            // レイキャストが当たった場所に表示するレティクル（ターゲットマーカー）
+            // レティクル
             reticle = new THREE.Mesh(
                 new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
-                new THREE.MeshBasicMaterial()
+                new THREE.MeshBasicMaterial({ color: 0xffffff })
             );
             reticle.matrixAutoUpdate = false;
             reticle.visible = false;
             scene.add(reticle);
 
+            // オブジェクト配置イベント
+            controller1.addEventListener('selectstart', onSelect);
+
             window.addEventListener('resize', onWindowResize);
+        }
+
+        function onSelect() {
+            if (reticle.visible) {
+                const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+                const material = new THREE.MeshNormalMaterial();
+                const mesh = new THREE.Mesh(geometry, material);
+                
+                mesh.position.setFromMatrixPosition(reticle.matrix);
+                scene.add(mesh);
+            }
         }
 
         function onWindowResize() {
@@ -94,41 +102,57 @@
 
         function render(time, frame) {
             if (frame) {
-                const session = renderer.xr.getSession();
+                const detectedPlanes = frame.detectedPlanes;
+                const referenceSpace = renderer.xr.getReferenceSpace();
 
-                // `hit-test`のソースをコントローラーの空間でリクエスト
-                if (!hitTestSourceRequested) {
-                    session.inputSources.forEach(inputSource => {
-                        if (inputSource.targetRayMode === 'tracked-pointer') {
-                            session.requestHitTestSource({ space: inputSource.targetRaySpace }).then(function (source) {
-                                hitTestSource = source;
-                            });
-                        }
-                    });
+                // 検出された平面を更新
+                for (const plane of detectedPlanes) {
+                    if (!trackedPlanes.has(plane.uuid)) {
+                        const geometry = new THREE.ShapeGeometry(createPlaneShape(plane.polygon));
+                        const material = new THREE.MeshBasicMaterial({
+                            color: 0x00ff00,
+                            side: THREE.DoubleSide,
+                            transparent: true,
+                            opacity: 0.0 // 可視化しないため透明に
+                        });
+                        const mesh = new THREE.Mesh(geometry, material);
+                        scene.add(mesh);
+                        placeablePlanes.push(mesh);
+                        trackedPlanes.set(plane.uuid, mesh);
+                    }
                     
-                    session.addEventListener('end', function () {
-                        hitTestSourceRequested = false;
-                        hitTestSource = null;
-                    });
-                    hitTestSourceRequested = true;
+                    const mesh = trackedPlanes.get(plane.uuid);
+                    mesh.matrix.fromArray(plane.getPose(referenceSpace).transform.matrix);
                 }
 
-                // `hit-test`の結果を取得
-                if (hitTestSource) {
-                    const hitTestResults = frame.getHitTestResults(hitTestSource);
+                // レイキャストの更新
+                const controllerPos = new THREE.Vector3().setFromMatrixPosition(controller1.matrixWorld);
+                const controllerDir = new THREE.Vector3(0, 0, -1).applyQuaternion(controller1.quaternion);
 
-                    if (hitTestResults.length > 0) {
-                        const hit = hitTestResults[0];
-                        const referenceSpace = renderer.xr.getReferenceSpace();
-                        reticle.visible = true;
-                        reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
-                    } else {
-                        reticle.visible = false;
-                    }
+                raycaster.set(controllerPos, controllerDir);
+
+                // レイキャストと平面との交差判定
+                const intersects = raycaster.intersectObjects(placeablePlanes);
+
+                if (intersects.length > 0) {
+                    reticle.visible = true;
+                    reticle.position.copy(intersects[0].point);
+                    reticle.quaternion.copy(intersects[0].object.quaternion);
+                } else {
+                    reticle.visible = false;
                 }
             }
 
             renderer.render(scene, camera);
+        }
+
+        function createPlaneShape(points) {
+            const shape = new THREE.Shape();
+            shape.moveTo(points[0].x, points[0].z);
+            for (let i = 1; i < points.length; i++) {
+                shape.lineTo(points[i].x, points[i].z);
+            }
+            return shape;
         }
     </script>
 </body>

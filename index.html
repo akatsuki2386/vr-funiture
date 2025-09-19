@@ -43,7 +43,6 @@
 
             document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local', 'hit-test'] }));
 
-            // WebXRセッション開始後にコントローラーをセットアップ
             renderer.xr.addEventListener('sessionstart', () => {
                 const controllerModelFactory = new XRControllerModelFactory();
 
@@ -72,11 +71,11 @@
                 const line2 = new THREE.Line(lineGeometry, lineMaterial);
                 controller2.add(line2);
 
-                // 右手コントローラーにイベントリスナーを追加
+                // 両方のコントローラーにイベントリスナーを追加
                 controller1.addEventListener('select', onSelect);
+                controller2.addEventListener('select', onSelect);
             });
 
-            // レティクル
             reticle = new THREE.Mesh(
                 new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
                 new THREE.MeshBasicMaterial({ color: 0xffffff })

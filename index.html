@@ -2,226 +2,79 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR Both Controllers - Plane Detection Visualizer (Green)</title>
-    <style>
-        body { margin: 0; }
-        canvas { display: block; }
-    </style>
+    <title>WebXR Plane Detection Test</title>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script>
+        // WebXR Plane Detection Module sample component
+        AFRAME.registerComponent('pdetect', {
+            init: function() {
+                const sceneEl = this.el.sceneEl;
+                // optionalFeaturesを設定
+                sceneEl.setAttribute("webxr", "optionalFeatures: plane-detection, hit-test");
+                this.planes = new Map(); // 検出された平面をMapで管理
+
+                sceneEl.addEventListener("enter-vr", ev => {
+                    this.planes.clear(); // セッション開始時にクリア
+                });
+            },
+
+            tick: function(time, dur) {
+                const session = this.el.sceneEl.xrSession;
+                if (!session || !session.frame) return;
+
+                const frame = session.frame;
+                const planesList = frame.detectedPlanes;
+
+                // 新しい平面をチェックして追加
+                planesList.forEach(plane => {
+                    if (!this.planes.has(plane.uuid)) {
+                        const planeEntity = document.createElement('a-entity');
+                        planeEntity.setAttribute('geometry', {
+                            primitive: 'plane'
+                        });
+                        planeEntity.setAttribute('material', {
+                            color: '#00ff00',
+                            side: 'double',
+                            opacity: 0.3,
+                            transparent: true
+                        });
+                        this.el.appendChild(planeEntity);
+                        this.planes.set(plane.uuid, planeEntity);
+                    }
+                });
+
+                // 既存の平面の更新
+                this.planes.forEach((entity, uuid) => {
+                    const plane = planesList.get(uuid);
+                    if (plane) {
+                        // 平面の姿勢（ポーズ）を更新
+                        const pose = frame.getPose(plane.planeSpace, this.el.sceneEl.renderer.xr.getReferenceSpace());
+                        if (pose) {
+                            entity.object3D.position.copy(pose.transform.position);
+                            entity.object3D.quaternion.copy(pose.transform.orientation);
+                        }
+
+                        // ポリゴン（形状）の更新
+                        const polygon = plane.polygon;
+                        const vertices = [];
+                        for (let i = 0; i < polygon.length; i++) {
+                            vertices.push(new THREE.Vector3(polygon[i].x, polygon[i].y, polygon[i].z));
+                        }
+                        
+                        // ポリゴンからジオメトリを再構築（より簡潔な方法）
+                        const shape = new THREE.Shape(vertices);
+                        const geometry = new THREE.ShapeGeometry(shape);
+                        entity.setObject3D('mesh', new THREE.Mesh(geometry, entity.components.material.material));
+                    }
+                });
+            }
+        });
+    </script>
 </head>
 <body>
-    <script type="importmap">
-        {
-          "imports": {
-            "three": "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js",
-            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.155.0/examples/jsm/"
-          }
-        }
-    </script>
-    <script type="module">
-        import * as THREE from 'three';
-        import { ARButton } from 'three/addons/webxr/ARButton.js';
-        import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
-
-        let camera, scene, renderer;
-        let controller1, controller2;
-        let reticle;
-        let hitTestSource = null;
-        let hitTestSourceRequested = false;
-
-        const intersectableObjects = [];
-        let grabbedObject = null;
-        let grabbingController = null;
-        const offset = new THREE.Vector3();
-
-        // 検出された平面を管理する配列
-        const detectedPlanes = [];
-
-        init();
-        animate();
-
-        function init() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true;
-            document.body.appendChild(renderer.domElement);
-
-            // plane-detection機能を要求
-            document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local', 'hit-test', 'plane-detection'] }));
-
-            renderer.xr.addEventListener('sessionstart', () => {
-                const controllerModelFactory = new XRControllerModelFactory();
-
-                controller1 = renderer.xr.getController(0);
-                scene.add(controller1);
-                const controllerGrip1 = renderer.xr.getControllerGrip(0);
-                controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
-                scene.add(controllerGrip1);
-
-                const lineGeometry = new THREE.BufferGeometry().setFromPoints([
-                    new THREE.Vector3(0, 0, 0),
-                    new THREE.Vector3(0, 0, -5)
-                ]);
-                const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
-                const line1 = new THREE.Line(lineGeometry, lineMaterial);
-                controller1.add(line1);
-
-                controller2 = renderer.xr.getController(1);
-                scene.add(controller2);
-                const controllerGrip2 = renderer.xr.getControllerGrip(1);
-                controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
-                scene.add(controllerGrip2);
-                const line2 = new THREE.Line(lineGeometry, lineMaterial);
-                controller2.add(line2);
-
-                controller1.addEventListener('selectstart', onSelectStart);
-                controller1.addEventListener('selectend', onSelectEnd);
-                controller2.addEventListener('selectstart', onSelectStart);
-                controller2.addEventListener('selectend', onSelectEnd);
-            });
-
-            reticle = new THREE.Mesh(
-                new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
-                new THREE.MeshBasicMaterial({ color: 0xffffff })
-            );
-            reticle.matrixAutoUpdate = false;
-            reticle.visible = false;
-            scene.add(reticle);
-
-            window.addEventListener('resize', onWindowResize);
-        }
-
-        function onSelectStart(event) {
-            const controller = event.target;
-            const tempMatrix = new THREE.Matrix4();
-            tempMatrix.identity().extractRotation(controller.matrixWorld);
-
-            const raycaster = new THREE.Raycaster();
-            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-
-            const intersects = raycaster.intersectObjects(intersectableObjects);
-
-            if (intersects.length > 0) {
-                const intersectedObject = intersects[0].object;
-                
-                grabbedObject = intersectedObject;
-                grabbingController = controller;
-                
-                offset.copy(grabbedObject.position).sub(reticle.position);
-
-                console.log('キューブをつかみました！');
-            } else {
-                if (reticle.visible) {
-                    const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-                    const material = new THREE.MeshNormalMaterial();
-                    const mesh = new THREE.Mesh(geometry, material);
-                    
-                    mesh.position.setFromMatrixPosition(reticle.matrix);
-                    scene.add(mesh);
-                    intersectableObjects.push(mesh);
-                }
-            }
-        }
-
-        function onSelectEnd() {
-            if (grabbedObject) {
-                grabbedObject = null;
-                grabbingController = null;
-                console.log('キューブを離しました！');
-            }
-        }
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        function animate() {
-            renderer.setAnimationLoop(render);
-        }
-
-        function render(time, frame) {
-            if (frame) {
-                const session = renderer.xr.getSession();
-
-                // 平面検出のロジック
-                if (session.enabledFeatures.includes('plane-detection')) {
-                    const detectedPlanesList = frame.getDetectedPlanes(session.requestReferenceSpace('local-floor'));
-                    
-                    for (const plane of detectedPlanesList) {
-                        const existingPlane = detectedPlanes.find(p => p.uuid === plane.uuid);
-                        
-                        if (existingPlane) {
-                            // 既存の平面のポーズを更新
-                            existingPlane.matrix.fromArray(plane.plane.transform.matrix);
-                        } else {
-                            // 新しい平面のメッシュを作成
-                            const geometry = new THREE.PlaneGeometry(1, 1);
-                            const material = new THREE.MeshBasicMaterial({
-                                color: 0x00ff00, // 明るい緑色に変更
-                                side: THREE.DoubleSide,
-                                transparent: true,
-                                opacity: 0.3 // 透明度を少し上げる
-                            });
-                            const mesh = new THREE.Mesh(geometry, material);
-                            mesh.matrixAutoUpdate = false;
-                            mesh.uuid = plane.uuid;
-                            mesh.matrix.fromArray(plane.plane.transform.matrix);
-                            scene.add(mesh);
-                            detectedPlanes.push(mesh);
-                        }
-                    }
-                }
-
-                // ヒットテストのロジック
-                if (!hitTestSourceRequested) {
-                    session.requestReferenceSpace('viewer').then(function (referenceSpace) {
-                        session.requestHitTestSource({ space: referenceSpace }).then(function (source) {
-                            hitTestSource = source;
-                        });
-                    });
-                    session.addEventListener('end', function () {
-                        hitTestSourceRequested = false;
-                        hitTestSource = null;
-                    });
-                    session.addEventListener('end', function () {
-                        hitTestSourceRequested = false;
-                        hitTestSource = null;
-                        // ARセッション終了時に検出された平面をクリア
-                        for(const planeMesh of detectedPlanes) {
-                            scene.remove(planeMesh);
-                            planeMesh.geometry.dispose();
-                            planeMesh.material.dispose();
-                        }
-                        detectedPlanes.length = 0; // 配列を空にする
-                    });
-                    hitTestSourceRequested = true;
-                }
-
-                if (hitTestSource) {
-                    const hitTestResults = frame.getHitTestResults(hitTestSource);
-
-                    if (hitTestResults.length > 0) {
-                        const hit = hitTestResults[0];
-                        const referenceSpace = renderer.xr.getReferenceSpace();
-                        reticle.visible = true;
-                        reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
-                    } else {
-                        reticle.visible = false;
-                    }
-                }
-
-                if (grabbedObject && reticle.visible) {
-                    grabbedObject.position.copy(reticle.position).add(offset);
-                }
-            }
-            renderer.render(scene, camera);
-        }
-    </script>
+    <a-scene webxr="requiredFeatures: hit-test; optionalFeatures: plane-detection;">
+        <a-entity pdetect></a-entity>
+        <a-camera></a-camera>
+    </a-scene>
 </body>
 </html>

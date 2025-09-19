@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR Both Controllers - Move Cube</title>
+    <title>WebXR Both Controllers - Plane-following Move</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -179,9 +179,9 @@
                     }
                 }
 
-                // --- つかんでいるキューブの追従処理 ---
-                if (grabbedObject && grabbingController) {
-                    grabbedObject.position.setFromMatrixPosition(grabbingController.matrixWorld);
+                // --- つかんでいるキューブの平面追従処理 ---
+                if (grabbedObject && reticle.visible) {
+                    grabbedObject.position.setFromMatrixPosition(reticle.matrix);
                 }
                 // --- 追従処理 終わり ---
             }

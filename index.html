@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR Both Controllers - Highlight Cube</title>
+    <title>WebXR Both Controllers - Final Version</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -30,10 +30,6 @@
 
         // キューブを管理するための配列
         const intersectableObjects = [];
-        // 現在ハイライトされているオブジェクトを追跡
-        let currentIntersectedObject = null;
-        // ハイライト用のマテリアル
-        const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.8 }); // 緑色で半透明
 
         init();
         animate();
@@ -60,7 +56,7 @@
                 controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
                 scene.add(controllerGrip1);
 
-                // レイキャストを可視化するための線 (ハイライトロジックとは別で、単なる表示用)
+                // レイキャストを可視化するための線
                 const lineGeometry = new THREE.BufferGeometry().setFromPoints([
                     new THREE.Vector3(0, 0, 0),
                     new THREE.Vector3(0, 0, -5)
@@ -78,7 +74,7 @@
                 const line2 = new THREE.Line(lineGeometry, lineMaterial);
                 controller2.add(line2);
 
-                // 両方のコントローラーにイベントリスナーを追加 (キューブ生成用)
+                // 両方のコントローラーにイベントリスナーを追加
                 controller1.addEventListener('select', onSelect);
                 controller2.addEventListener('select', onSelect);
             });
@@ -94,19 +90,46 @@
             window.addEventListener('resize', onWindowResize);
         }
 
-        // キューブ生成用関数
-        function onSelect() {
-            if (reticle.visible) {
-                const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-                const material = new THREE.MeshNormalMaterial(); // キューブ生成時のデフォルトマテリアル
-                const mesh = new THREE.Mesh(geometry, material);
+        function onSelect(event) {
+            const controller = event.target;
+            const tempMatrix = new THREE.Matrix4();
+            tempMatrix.identity().extractRotation(controller.matrixWorld);
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+
+            // シーン内のキューブに対して交差判定
+            const intersects = raycaster.intersectObjects(intersectableObjects);
+
+            if (intersects.length > 0) {
+                const intersectedObject = intersects[0].object;
                 
-                mesh.position.setFromMatrixPosition(reticle.matrix);
+                // シーンからオブジェクトを削除
+                scene.remove(intersectedObject);
                 
-                // 元のマテリアルを保存しておく
-                mesh.userData.originalMaterial = material; 
-                scene.add(mesh);
-                intersectableObjects.push(mesh); // 検出対象の配列に追加
+                // 配列からも削除
+                const index = intersectableObjects.indexOf(intersectedObject);
+                if (index > -1) {
+                    intersectableObjects.splice(index, 1);
+                }
+                
+                // メモリを解放
+                if (intersectedObject.geometry) intersectedObject.geometry.dispose();
+                if (intersectedObject.material) intersectedObject.material.dispose();
+                
+                console.log('キューブを削除しました！');
+            } else {
+                // 何にも当たらない場合、新しいキューブを生成
+                if (reticle.visible) {
+                    const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+                    const material = new THREE.MeshNormalMaterial();
+                    const mesh = new THREE.Mesh(geometry, material);
+                    
+                    mesh.position.setFromMatrixPosition(reticle.matrix);
+                    scene.add(mesh);
+                    intersectableObjects.push(mesh); // 配列に追加
+                }
             }
         }
 
@@ -149,73 +172,7 @@
                         reticle.visible = false;
                     }
                 }
-
-                // --- レイキャストによるオブジェクトのハイライト処理 ---
-                let controllerIntersected = false; // どちらかのコントローラーがオブジェクトに当たったか
-
-                // コントローラー1のレイキャスト
-                if (controller1) {
-                    const tempMatrix = new THREE.Matrix4();
-                    tempMatrix.identity().extractRotation(controller1.matrixWorld);
-                    const raycaster1 = new THREE.Raycaster();
-                    raycaster1.ray.origin.setFromMatrixPosition(controller1.matrixWorld);
-                    raycaster1.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-                    const intersects1 = raycaster1.intersectObjects(intersectableObjects);
-
-                    if (intersects1.length > 0) {
-                        const intersectedObject = intersects1[0].object;
-                        if (intersectedObject.geometry instanceof THREE.BoxGeometry) {
-                            if (currentIntersectedObject && currentIntersectedObject !== intersectedObject) {
-                                // 以前ハイライトされていたオブジェクトを元に戻す
-                                currentIntersectedObject.material = currentIntersectedObject.userData.originalMaterial;
-                            }
-                            // 新しくハイライトする
-                            if (intersectedObject.material !== highlightMaterial) {
-                                currentIntersectedObject = intersectedObject;
-                                currentIntersectedObject.material = highlightMaterial;
-                                console.log('キューブにレイキャストが当たりました！ (Controller 1)');
-                            }
-                            controllerIntersected = true;
-                        }
-                    }
-                }
-
-                // コントローラー2のレイキャスト (Controller1がヒットしなかった場合のみ処理、または独立して処理)
-                // 今回はシンプルに、Controller1がヒットしなかった場合にController2をチェック
-                if (!controllerIntersected && controller2) { 
-                    const tempMatrix = new THREE.Matrix4();
-                    tempMatrix.identity().extractRotation(controller2.matrixWorld);
-                    const raycaster2 = new THREE.Raycaster();
-                    raycaster2.ray.origin.setFromMatrixPosition(controller2.matrixWorld);
-                    raycaster2.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-                    const intersects2 = raycaster2.intersectObjects(intersectableObjects);
-
-                    if (intersects2.length > 0) {
-                        const intersectedObject = intersects2[0].object;
-                        if (intersectedObject.geometry instanceof THREE.BoxGeometry) {
-                            if (currentIntersectedObject && currentIntersectedObject !== intersectedObject) {
-                                // 以前ハイライトされていたオブジェクトを元に戻す
-                                currentIntersectedObject.material = currentIntersectedObject.userData.originalMaterial;
-                            }
-                            // 新しくハイライトする
-                            if (intersectedObject.material !== highlightMaterial) {
-                                currentIntersectedObject = intersectedObject;
-                                currentIntersectedObject.material = highlightMaterial;
-                                console.log('キューブにレイキャストが当たりました！ (Controller 2)');
-                            }
-                            controllerIntersected = true;
-                        }
-                    }
-                }
-
-                // どちらのコントローラーもオブジェクトに当たっていない場合、ハイライトを解除
-                if (!controllerIntersected && currentIntersectedObject) {
-                    currentIntersectedObject.material = currentIntersectedObject.userData.originalMaterial;
-                    currentIntersectedObject = null;
-                }
-                // --- レイキャストによるオブジェクトのハイライト処理 終わり ---
             }
-
             renderer.render(scene, camera);
         }
     </script>

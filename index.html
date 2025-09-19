@@ -1,194 +1,171 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>WebXR Object Manipulation</title>
-    <style>
-        body { margin: 0; }
-        canvas { display: block; }
-    </style>
+    <meta charset="utf-8">
+    <title>WebXR Both Controllers</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
 </head>
 <body>
-    <script type="importmap">
-        {
-          "imports": {
-            "three": "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js",
-            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.155.0/examples/jsm/"
-          }
-        }
-    </script>
-    <script type="module">
-        import * as THREE from 'three';
-        import { ARButton } from 'three/addons/webxr/ARButton.js';
-        import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+    <script type="importmap">
+        {
+          "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.155.0/examples/jsm/"
+          }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { ARButton } from 'three/addons/webxr/ARButton.js';
+        import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
-        let camera, scene, renderer;
-        let controller1, controller2;
-        let reticle;
-        let hitTestSource = null;
-        let hitTestSourceRequested = false;
-        let objectRaycaster;
-        const placedObjects = [];
-        let lastIntersected = null;
+        let camera, scene, renderer;
+        let controller1, controller2;
+        let reticle;
+        let hitTestSource = null;
+        let hitTestSourceRequested = false;
 
-        init();
-        animate();
+        let cubes = [];
+        let raycaster;
 
-        function init() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+        init();
+        animate();
 
-            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-            light.position.set(0.5, 1, 0.25);
-            scene.add(light);
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true;
-            document.body.appendChild(renderer.domElement);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
+            document.body.appendChild(renderer.domElement);
 
-            document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local', 'hit-test'] }));
+            document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local', 'hit-test'] }));
 
-            renderer.xr.addEventListener('sessionstart', () => {
-                const controllerModelFactory = new XRControllerModelFactory();
+            raycaster = new THREE.Raycaster();
 
-                controller1 = renderer.xr.getController(0);
-                scene.add(controller1);
-                const controllerGrip1 = renderer.xr.getControllerGrip(0);
-                controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
-                scene.add(controllerGrip1);
+            renderer.xr.addEventListener('sessionstart', () => {
+                const controllerModelFactory = new XRControllerModelFactory();
 
-                const lineGeometry = new THREE.BufferGeometry().setFromPoints([
-                    new THREE.Vector3(0, 0, 0),
-                    new THREE.Vector3(0, 0, -5)
-                ]);
-                const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
-                const line1 = new THREE.Line(lineGeometry, lineMaterial);
-                controller1.add(line1);
+                // 右手コントローラーを取得 (インデックス 0)
+                controller1 = renderer.xr.getController(0);
+                scene.add(controller1);
+                const controllerGrip1 = renderer.xr.getControllerGrip(0);
+                controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
+                scene.add(controllerGrip1);
 
-                controller2 = renderer.xr.getController(1);
-                scene.add(controller2);
-                const controllerGrip2 = renderer.xr.getControllerGrip(1);
-                controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
-                scene.add(controllerGrip2);
-                const line2 = new THREE.Line(lineGeometry, lineMaterial);
-                controller2.add(line2);
+                // レイキャストを可視化するための線
+                const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(0, 0, -5)
+                ]);
+                const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+                const line1 = new THREE.Line(lineGeometry, lineMaterial);
+                controller1.add(line1);
 
-                controller1.addEventListener('select', onSelect);
-                
-                // オブジェクトの削除イベント
-                controller1.addEventListener('end', onEnd);
-            });
+                // 左手コントローラーを取得 (インデックス 1)
+                controller2 = renderer.xr.getController(1);
+                scene.add(controller2);
+                const controllerGrip2 = renderer.xr.getControllerGrip(1);
+                controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
+                scene.add(controllerGrip2);
+                const line2 = new THREE.Line(lineGeometry, lineMaterial);
+                controller2.add(line2);
 
-            objectRaycaster = new THREE.Raycaster();
+                // 両方のコントローラーにイベントリスナーを追加
+                controller1.addEventListener('select', onSelect);
+                controller2.addEventListener('select', onSelect);
+                controller1.addEventListener('squeeze', onSqueeze);
+                controller2.addEventListener('squeeze', onSqueeze);
+            });
 
-            reticle = new THREE.Mesh(
-                new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
-                new THREE.MeshBasicMaterial({ color: 0xffffff })
-            );
-            reticle.matrixAutoUpdate = false;
-            reticle.visible = false;
-            scene.add(reticle);
+            reticle = new THREE.Mesh(
+                new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
+                new THREE.MeshBasicMaterial({ color: 0xffffff })
+            );
+            reticle.matrixAutoUpdate = false;
+            reticle.visible = false;
+            scene.add(reticle);
 
-            window.addEventListener('resize', onWindowResize);
-        }
+            window.addEventListener('resize', onWindowResize);
+        }
 
-        function onSelect() {
-            if (reticle.visible) {
-                const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-                const material = new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff });
-                const mesh = new THREE.Mesh(geometry, material);
-                
-                mesh.position.setFromMatrixPosition(reticle.matrix);
-                scene.add(mesh);
-                placedObjects.push(mesh);
-            }
-        }
-        
-        // オブジェクトの削除ロジック
-        function onEnd(event) {
-            // event.inputSource.gamepad が存在し、Bボタン（インデックス 5）が押されたか確認
-            if (event.inputSource.gamepad && event.inputSource.gamepad.buttons[5] && event.inputSource.gamepad.buttons[5].pressed) {
-                if (lastIntersected) {
-                    scene.remove(lastIntersected);
-                    const index = placedObjects.indexOf(lastIntersected);
-                    if (index > -1) {
-                        placedObjects.splice(index, 1);
-                    }
-                    lastIntersected = null;
-                }
-            }
-        }
+        function onSelect() {
+            if (reticle.visible) {
+                const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+                const material = new THREE.MeshNormalMaterial();
+                const mesh = new THREE.Mesh(geometry, material);
+                
+                mesh.position.setFromMatrixPosition(reticle.matrix);
+                scene.add(mesh);
+                cubes.push(mesh); // ここで配列に追加
+            }
+        }
 
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
+        function onSqueeze(event) {
+            const controller = event.target;
+            raycaster.setFromXRController(controller);
 
-        function animate() {
-            renderer.setAnimationLoop(render);
-        }
+            const intersects = raycaster.intersectObjects(cubes);
 
-        function render(time, frame) {
-            if (frame) {
-                const session = renderer.xr.getSession();
+            if (intersects.length > 0) {
+                const intersectedObject = intersects[0].object;
+                scene.remove(intersectedObject);
+                
+                const index = cubes.indexOf(intersectedObject);
+                if (index > -1) {
+                    cubes.splice(index, 1);
+                }
+            }
+        }
 
-                if (!hitTestSourceRequested) {
-                    session.requestReferenceSpace('viewer').then(function (referenceSpace) {
-                        session.requestHitTestSource({ space: referenceSpace }).then(function (source) {
-                            hitTestSource = source;
-                        });
-                    });
-                    session.addEventListener('end', function () {
-                        hitTestSourceRequested = false;
-                        hitTestSource = null;
-                    });
-                    hitTestSourceRequested = true;
-                }
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
 
-                if (hitTestSource) {
-                    const hitTestResults = frame.getHitTestResults(hitTestSource);
+        function animate() {
+            renderer.setAnimationLoop(render);
+        }
 
-                    if (hitTestResults.length > 0) {
-                        const hit = hitTestResults[0];
-                        const referenceSpace = renderer.xr.getReferenceSpace();
-                        reticle.visible = true;
-                        reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
-                    } else {
-                        reticle.visible = false;
-                    }
-                }
-                
-                if (controller1) {
-                    const controllerPos = new THREE.Vector3().setFromMatrixPosition(controller1.matrixWorld);
-                    const controllerDir = new THREE.Vector3(0, 0, -1).applyQuaternion(controller1.quaternion);
-                    objectRaycaster.set(controllerPos, controllerDir);
+        function render(time, frame) {
+            if (frame) {
+                const session = renderer.xr.getSession();
 
-                    const intersects = objectRaycaster.intersectObjects(placedObjects);
+                if (!hitTestSourceRequested) {
+                    session.requestReferenceSpace('viewer').then(function (referenceSpace) {
+                        session.requestHitTestSource({ space: referenceSpace }).then(function (source) {
+                            hitTestSource = source;
+                        });
+                    });
+                    session.addEventListener('end', function () {
+                        hitTestSourceRequested = false;
+                        hitTestSource = null;
+                    });
+                    hitTestSourceRequested = true;
+                }
 
-                    if (intersects.length > 0) {
-                        const intersectedObject = intersects[0].object;
-                        
-                        if (intersectedObject !== lastIntersected) {
-                            if (lastIntersected) {
-                                lastIntersected.material.emissive.setHex(0x000000); 
-                            }
-                            intersectedObject.material.emissive.setHex(0xff0000); 
-                            lastIntersected = intersectedObject;
-                        }
+                if (hitTestSource) {
+                    const hitTestResults = frame.getHitTestResults(hitTestSource);
 
-                    } else {
-                        if (lastIntersected) {
-                            lastIntersected.material.emissive.setHex(0x000000);
-                            lastIntersected = null;
-                        }
-                    }
-                }
-            }
-            renderer.render(scene, camera);
-        }
-    </script>
+                    if (hitTestResults.length > 0) {
+                        const hit = hitTestResults[0];
+                        const referenceSpace = renderer.xr.getReferenceSpace();
+                        reticle.visible = true;
+                        reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
+                    } else {
+                        reticle.visible = false;
+                    }
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+    </script>
 </body>
 </html>

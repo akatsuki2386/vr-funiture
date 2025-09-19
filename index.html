@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR Both Controllers</title>
+    <title>WebXR Object Manipulation</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -23,10 +23,13 @@
         import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
         let camera, scene, renderer;
-        let controller1, controller2;
+        let controller1;
         let reticle;
         let hitTestSource = null;
         let hitTestSourceRequested = false;
+        let objectRaycaster;
+        const placedObjects = [];
+        let isDeleting = false;
 
         init();
         animate();
@@ -62,20 +65,17 @@
                 const line1 = new THREE.Line(lineGeometry, lineMaterial);
                 controller1.add(line1);
 
-                // 左手コントローラーを取得 (インデックス 1)
-                controller2 = renderer.xr.getController(1);
-                scene.add(controller2);
-                const controllerGrip2 = renderer.xr.getControllerGrip(1);
-                controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
-                scene.add(controllerGrip2);
-                const line2 = new THREE.Line(lineGeometry, lineMaterial);
-                controller2.add(line2);
-
-                // 両方のコントローラーにイベントリスナーを追加
+                // オブジェクト配置イベント
                 controller1.addEventListener('select', onSelect);
-                controller2.addEventListener('select', onSelect);
+                
+                // オブジェクト削除イベント
+                controller1.addEventListener('end', onEnd);
             });
 
+            // オブジェクト用レイキャスター
+            objectRaycaster = new THREE.Raycaster();
+
+            // レティクル
             reticle = new THREE.Mesh(
                 new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
                 new THREE.MeshBasicMaterial({ color: 0xffffff })
@@ -95,6 +95,25 @@
                 
                 mesh.position.setFromMatrixPosition(reticle.matrix);
                 scene.add(mesh);
+                placedObjects.push(mesh);
+            }
+        }
+
+        function onEnd(event) {
+            // Aボタン (xr-standard-button) が離されたときに削除
+            if (event.inputSource.gamepad.buttons[4].pressed === false) { // Aボタンはインデックス4
+                if (isDeleting) {
+                    const intersects = objectRaycaster.intersectObjects(placedObjects);
+                    if (intersects.length > 0) {
+                        const objectToDelete = intersects[0].object;
+                        scene.remove(objectToDelete);
+                        const index = placedObjects.indexOf(objectToDelete);
+                        if (index > -1) {
+                            placedObjects.splice(index, 1);
+                        }
+                    }
+                }
+                isDeleting = false;
             }
         }
 
@@ -112,6 +131,7 @@
             if (frame) {
                 const session = renderer.xr.getSession();
 
+                // Hit-testのロジック (変更なし)
                 if (!hitTestSourceRequested) {
                     session.requestReferenceSpace('viewer').then(function (referenceSpace) {
                         session.requestHitTestSource({ space: referenceSpace }).then(function (source) {
@@ -137,8 +157,38 @@
                         reticle.visible = false;
                     }
                 }
-            }
+                
+                // オブジェクトのレイキャスト
+                if (controller1) {
+                    const controllerPos = new THREE.Vector3().setFromMatrixPosition(controller1.matrixWorld);
+                    const controllerDir = new THREE.Vector3(0, 0, -1).applyQuaternion(controller1.quaternion);
+                    objectRaycaster.set(controllerPos, controllerDir);
 
+                    const intersects = objectRaycaster.intersectObjects(placedObjects);
+
+                    // Aボタンが押されたら削除モード
+                    if (controller1.gamepad && controller1.gamepad.buttons[4].pressed) {
+                        isDeleting = true;
+                    }
+
+                    // オブジェクトに当たったときの視覚的なフィードバック (色を変える)
+                    if (intersects.length > 0) {
+                        const intersectedObject = intersects[0].object;
+                        if (intersectedObject.currentHex === undefined) {
+                            intersectedObject.currentHex = intersectedObject.material.emissive.getHex();
+                            intersectedObject.material.emissive.setHex(0xff0000); // 赤色にハイライト
+                        }
+                    } else {
+                        // オブジェクトから離れたら色を元に戻す
+                        placedObjects.forEach(obj => {
+                            if (obj.currentHex !== undefined) {
+                                obj.material.emissive.setHex(obj.currentHex);
+                                delete obj.currentHex;
+                            }
+                        });
+                    }
+                }
+            }
             renderer.render(scene, camera);
         }
     </script>

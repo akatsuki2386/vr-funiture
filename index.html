@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR Gaze Placement - Right Controller</title>
+    <title>WebXR Gaze Placement - Handedness</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -23,8 +23,7 @@
         import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
         let camera, scene, renderer;
-        let controller1; // 右手コントローラー
-        let raycaster;
+        let rightController;
         let reticle;
         let hitTestSource = null;
         let hitTestSourceRequested = false;
@@ -46,22 +45,34 @@
 
             const controllerModelFactory = new XRControllerModelFactory();
 
-            // 右手コントローラーを取得 (インデックス 0)
-            controller1 = renderer.xr.getController(0);
-            scene.add(controller1);
-            const controllerGrip1 = renderer.xr.getControllerGrip(0);
-            controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
-            scene.add(controllerGrip1);
+            // WebXRセッション開始後にコントローラーをセットアップ
+            renderer.xr.addEventListener('sessionstart', () => {
+                const session = renderer.xr.getSession();
+                session.inputSources.forEach((source) => {
+                    if (source.handedness === 'right') {
+                        rightController = renderer.xr.getController(source.targetRaySpace);
+                        const controllerGrip = renderer.xr.getControllerGrip(source.targetRaySpace);
+                        controllerGrip.add(controllerModelFactory.createControllerModel(controllerGrip));
+                        scene.add(rightController, controllerGrip);
 
-            // レイキャストを可視化するための線 (オプション、今回は配置に直接影響しない)
-            const lineGeometry = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(0, 0, 0),
-                new THREE.Vector3(0, 0, -5)
-            ]);
-            const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
-            const line1 = new THREE.Line(lineGeometry, lineMaterial);
-            controller1.add(line1);
+                        // 右手コントローラーにイベントリスナーを追加
+                        rightController.addEventListener('select', onSelect);
 
+                        // レイキャスト可視化用の線（今回は右手のみ）
+                        const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                            new THREE.Vector3(0, 0, 0),
+                            new THREE.Vector3(0, 0, -5)
+                        ]);
+                        const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+                        const line = new THREE.Line(lineGeometry, lineMaterial);
+                        rightController.add(line);
+                    } else if (source.handedness === 'left') {
+                        // 左手コントローラーが必要ならここに追加
+                    }
+                });
+            });
+
+            // レイキャスト
             raycaster = new THREE.Raycaster();
 
             // レティクル
@@ -72,9 +83,6 @@
             reticle.matrixAutoUpdate = false;
             reticle.visible = false;
             scene.add(reticle);
-
-            // 右手コントローラーの 'select' イベントリスナー
-            controller1.addEventListener('select', onSelect);
 
             window.addEventListener('resize', onWindowResize);
         }

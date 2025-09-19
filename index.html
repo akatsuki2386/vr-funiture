@@ -23,7 +23,7 @@
         import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
         let camera, scene, renderer;
-        let controller1, controller2; // 両方のコントローラーを追加
+        let controller1, controller2;
         let reticle;
         let hitTestSource = null;
         let hitTestSourceRequested = false;
@@ -53,35 +53,44 @@
 
             renderer.xr.addEventListener('sessionstart', () => {
                 const controllerModelFactory = new XRControllerModelFactory();
+                const session = renderer.xr.getSession();
 
-                // 右手コントローラーを取得 (インデックス 0)
-                controller1 = renderer.xr.getController(0);
-                scene.add(controller1);
-                const controllerGrip1 = renderer.xr.getControllerGrip(0);
-                controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
-                scene.add(controllerGrip1);
+                // コントローラーの利き手（handedness）をチェックして取得
+                session.inputSources.forEach((source) => {
+                    if (source.handedness === 'right') {
+                        controller1 = renderer.xr.getController(source.targetRaySpace);
+                        const controllerGrip1 = renderer.xr.getControllerGrip(source.targetRaySpace);
+                        controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
+                        scene.add(controller1, controllerGrip1);
 
-                // レイキャストを可視化するための線
-                const lineGeometry = new THREE.BufferGeometry().setFromPoints([
-                    new THREE.Vector3(0, 0, 0),
-                    new THREE.Vector3(0, 0, -5)
-                ]);
-                const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
-                const line1 = new THREE.Line(lineGeometry, lineMaterial);
-                controller1.add(line1);
+                        // レイキャストを可視化するための線
+                        const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                            new THREE.Vector3(0, 0, 0),
+                            new THREE.Vector3(0, 0, -5)
+                        ]);
+                        const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+                        const line1 = new THREE.Line(lineGeometry, lineMaterial);
+                        controller1.add(line1);
 
-                // 左手コントローラーを取得 (インデックス 1)
-                controller2 = renderer.xr.getController(1);
-                scene.add(controller2);
-                const controllerGrip2 = renderer.xr.getControllerGrip(1);
-                controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
-                scene.add(controllerGrip2);
-                const line2 = new THREE.Line(lineGeometry, lineMaterial);
-                controller2.add(line2);
+                        // 右手コントローラーにイベントリスナーを追加
+                        controller1.addEventListener('select', onSelect);
+                        controller1.addEventListener('end', onEnd);
 
-                // 右手コントローラーにイベントリスナーを追加
-                controller1.addEventListener('select', onSelect);
+                    } else if (source.handedness === 'left') {
+                        controller2 = renderer.xr.getController(source.targetRaySpace);
+                        const controllerGrip2 = renderer.xr.getControllerGrip(source.targetRaySpace);
+                        controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
+                        scene.add(controller2, controllerGrip2);
 
+                        const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                            new THREE.Vector3(0, 0, 0),
+                            new THREE.Vector3(0, 0, -5)
+                        ]);
+                        const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+                        const line2 = new THREE.Line(lineGeometry, lineMaterial);
+                        controller2.add(line2);
+                    }
+                });
             });
 
             objectRaycaster = new THREE.Raycaster();
@@ -106,6 +115,20 @@
                 mesh.position.setFromMatrixPosition(reticle.matrix);
                 scene.add(mesh);
                 placedObjects.push(mesh);
+            }
+        }
+        
+        function onEnd(event) {
+            // event.inputSource.gamepad が存在し、Bボタン（インデックス 5）が押されたか確認
+            if (event.inputSource.gamepad && event.inputSource.gamepad.buttons[5] && event.inputSource.gamepad.buttons[5].pressed) {
+                if (lastIntersected) {
+                    scene.remove(lastIntersected);
+                    const index = placedObjects.indexOf(lastIntersected);
+                    if (index > -1) {
+                        placedObjects.splice(index, 1);
+                    }
+                    lastIntersected = null;
+                }
             }
         }
 
@@ -165,16 +188,6 @@
                             }
                             intersectedObject.material.emissive.setHex(0xff0000); 
                             lastIntersected = intersectedObject;
-                        }
-                        
-                        // Aボタン（buttons[4]）が押されたらオブジェクトを削除
-                        if (controller1.gamepad && controller1.gamepad.buttons[4] && controller1.gamepad.buttons[4].pressed) {
-                            scene.remove(intersectedObject);
-                            const index = placedObjects.indexOf(intersectedObject);
-                            if (index > -1) {
-                                placedObjects.splice(index, 1);
-                            }
-                            lastIntersected = null; 
                         }
 
                     } else {

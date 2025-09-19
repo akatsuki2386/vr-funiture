@@ -38,6 +38,11 @@
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
+            // 光源を追加
+            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+            light.position.set(0.5, 1, 0.25);
+            scene.add(light);
+
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -49,14 +54,12 @@
             renderer.xr.addEventListener('sessionstart', () => {
                 const controllerModelFactory = new XRControllerModelFactory();
 
-                // 右手コントローラーを取得 (インデックス 0)
                 controller1 = renderer.xr.getController(0);
                 scene.add(controller1);
                 const controllerGrip1 = renderer.xr.getControllerGrip(0);
                 controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
                 scene.add(controllerGrip1);
 
-                // レイキャストを可視化するための線
                 const lineGeometry = new THREE.BufferGeometry().setFromPoints([
                     new THREE.Vector3(0, 0, 0),
                     new THREE.Vector3(0, 0, -5)
@@ -65,15 +68,12 @@
                 const line1 = new THREE.Line(lineGeometry, lineMaterial);
                 controller1.add(line1);
 
-                // オブジェクト配置イベント
                 controller1.addEventListener('select', onSelect);
 
             });
 
-            // オブジェクト用レイキャスター
             objectRaycaster = new THREE.Raycaster();
 
-            // レティクル
             reticle = new THREE.Mesh(
                 new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
                 new THREE.MeshBasicMaterial({ color: 0xffffff })
@@ -88,7 +88,7 @@
         function onSelect() {
             if (reticle.visible) {
                 const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-                const material = new THREE.MeshNormalMaterial();
+                const material = new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff }); // ★変更点: マテリアルをStandardに変更
                 const mesh = new THREE.Mesh(geometry, material);
                 
                 mesh.position.setFromMatrixPosition(reticle.matrix);
@@ -111,7 +111,6 @@
             if (frame) {
                 const session = renderer.xr.getSession();
 
-                // Hit-testのロジック (変更なし)
                 if (!hitTestSourceRequested) {
                     session.requestReferenceSpace('viewer').then(function (referenceSpace) {
                         session.requestHitTestSource({ space: referenceSpace }).then(function (source) {
@@ -138,7 +137,6 @@
                     }
                 }
                 
-                // オブジェクトのレイキャストと削除
                 if (controller1) {
                     const controllerPos = new THREE.Vector3().setFromMatrixPosition(controller1.matrixWorld);
                     const controllerDir = new THREE.Vector3(0, 0, -1).applyQuaternion(controller1.quaternion);
@@ -149,29 +147,25 @@
                     if (intersects.length > 0) {
                         const intersectedObject = intersects[0].object;
                         
-                        // 新しいオブジェクトに当たった場合
                         if (intersectedObject !== lastIntersected) {
-                            // 前のオブジェクトの色を戻す
                             if (lastIntersected) {
-                                lastIntersected.material.emissive.setHex(0x000000); // 変更をリセット
+                                lastIntersected.material.emissive.setHex(0x000000); 
                             }
-                            // 新しいオブジェクトをハイライト
-                            intersectedObject.material.emissive.setHex(0xff0000); // 赤色にハイライト
+                            intersectedObject.material.emissive.setHex(0xff0000); 
                             lastIntersected = intersectedObject;
                         }
-
-                        // Aボタンが押されたらオブジェクトを削除
-                        if (controller1.gamepad && controller1.gamepad.buttons[4].pressed) {
+                        
+                        // Aボタン（buttons[4]）が押されたらオブジェクトを削除
+                        if (controller1.gamepad && controller1.gamepad.buttons[4] && controller1.gamepad.buttons[4].pressed) {
                             scene.remove(intersectedObject);
                             const index = placedObjects.indexOf(intersectedObject);
                             if (index > -1) {
                                 placedObjects.splice(index, 1);
                             }
-                            lastIntersected = null; // 削除したのでリセット
+                            lastIntersected = null; 
                         }
 
                     } else {
-                        // レイキャストが何も当たっていない場合
                         if (lastIntersected) {
                             lastIntersected.material.emissive.setHex(0x000000);
                             lastIntersected = null;

@@ -23,7 +23,7 @@
         import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
         let camera, scene, renderer;
-        let controller1;
+        let controller1, controller2; // 両方のコントローラーを追加
         let reticle;
         let hitTestSource = null;
         let hitTestSourceRequested = false;
@@ -54,12 +54,14 @@
             renderer.xr.addEventListener('sessionstart', () => {
                 const controllerModelFactory = new XRControllerModelFactory();
 
+                // 右手コントローラーを取得 (インデックス 0)
                 controller1 = renderer.xr.getController(0);
                 scene.add(controller1);
                 const controllerGrip1 = renderer.xr.getControllerGrip(0);
                 controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
                 scene.add(controllerGrip1);
 
+                // レイキャストを可視化するための線
                 const lineGeometry = new THREE.BufferGeometry().setFromPoints([
                     new THREE.Vector3(0, 0, 0),
                     new THREE.Vector3(0, 0, -5)
@@ -68,6 +70,16 @@
                 const line1 = new THREE.Line(lineGeometry, lineMaterial);
                 controller1.add(line1);
 
+                // 左手コントローラーを取得 (インデックス 1)
+                controller2 = renderer.xr.getController(1);
+                scene.add(controller2);
+                const controllerGrip2 = renderer.xr.getControllerGrip(1);
+                controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
+                scene.add(controllerGrip2);
+                const line2 = new THREE.Line(lineGeometry, lineMaterial);
+                controller2.add(line2);
+
+                // 右手コントローラーにイベントリスナーを追加
                 controller1.addEventListener('select', onSelect);
 
             });
@@ -88,7 +100,7 @@
         function onSelect() {
             if (reticle.visible) {
                 const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-                const material = new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff }); // ★変更点: マテリアルをStandardに変更
+                const material = new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff });
                 const mesh = new THREE.Mesh(geometry, material);
                 
                 mesh.position.setFromMatrixPosition(reticle.matrix);

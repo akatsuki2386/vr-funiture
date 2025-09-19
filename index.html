@@ -27,7 +27,6 @@
         let reticle;
         let hitTestSource = null;
         let hitTestSourceRequested = false;
-
         let cubes = [];
         let raycaster;
 
@@ -102,7 +101,7 @@
                 
                 mesh.position.setFromMatrixPosition(reticle.matrix);
                 scene.add(mesh);
-                cubes.push(mesh); // ここで配列に追加
+                cubes.push(mesh);
             }
         }
 

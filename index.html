@@ -1,123 +1,140 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-    <meta charset="utf-8">
-    <title>A-Frame WebXR Plane Detection</title>
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script>
-        // scene init component
-        AFRAME.registerComponent('sceneinit', {
-            schema: {
-                query:{type:"array"}
-            },
-            init:function() {
-                console.log("start");
-                // init code here
-            },
-            tick:function(time,dur) {
-                // called each frame 
-            }
-        });
-
-        // WebXR Plane Detection Module sample component
-        AFRAME.registerComponent('pdetect',{
-            init:function() {
-                const sc = this.el.sceneEl;
-                // set option feature
-                sc.setAttribute("webxr","optionalFeatures: plane-detection");
-                this.start = false; 
-                sc.addEventListener("enter-vr", ev=>{
-                    this.pf = 0; 
-                    setTimeout(ev=>{
-                        this.start = true; 
-                    }, 1000);
-                });
-            },
-            update:function(old) {
-            },
-            tick:function(time,dur) {
-                if(!this.start) return; 
-                const fr = this.el.sceneEl.frame;
-                if(!fr) return; 
-                // 検知された面
-                const p = fr.detectedPlanes;
-                if(!p) return; 
-                if(p.size === 0) return; 
-                //最初の一回だけ(手抜き)
-                if(this.pf++ > 0) return; 
-                const ref = this.el.sceneEl.renderer.xr.getReferenceSpace();
-                const pl = [];
-                p.forEach(o=>{
-                    //面の向きのquaternionの取得
-                    const planePose = fr.getPose(o.planeSpace, ref);
-                    pl.push([o.polygon, planePose.transform.matrix]);
-                });
-                setplanes(this.el.object3D, pl);
-            },
-        });
-
-        //面の描画
-        let col = 0xf00000;
-        function setplanes(to,pl) {
-            console.log(pl.length);
-            to.children = []; 
-            pl.forEach(p=>{
-                const poly = p[0];
-                const geometry = new THREE.BufferGeometry();
-                const vertices = new Float32Array([
-                    poly[0].x,poly[0].y,poly[0].z,
-                    poly[1].x,poly[1].y,poly[1].z,
-                    poly[2].x,poly[2].y,poly[2].z,
-                    
-                    poly[2].x,poly[2].y,poly[2].z,
-                    poly[3].x,poly[3].y,poly[3].z,
-                    poly[4].x,poly[4].y,poly[4].z,
-                ]);
-                geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-                const material = new THREE.MeshBasicMaterial({ color: col, opacity: 0.5, side: THREE.FrontSide });
-                const mesh = new THREE.Mesh(geometry, material);
-                col += 32; 
-                mesh.matrix.elements = p[1];
-                mesh.matrix.decompose(mesh.position, mesh.rotation, mesh.scale);
-                to.add(mesh);
-                console.log(mesh.position);
-                console.log(mesh.rotation);
-                //面の向きで色を変える
-                if(Math.abs(mesh.rotation.x) < 0.01) mesh.material.color = new THREE.Color(0x00f000);
-                if(Math.abs(Math.abs(mesh.rotation.x) - Math.PI) < 0.01) mesh.material.color = new THREE.Color(0x0000f0);
-            });
-        }
-    </script>
+  <meta charset="UTF-8">
+  <title>Meta Quest 3 WebXR 平面検出デモ</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    #start-ar {
+      position: absolute;
+      z-index: 10;
+      top: 20px; left: 20px;
+      font-size: 2em;
+      padding: 0.5em 1em;
+    }
+  </style>
 </head>
 <body>
+  <button id="start-ar">AR開始</button>
+  <script type="module">
+    import * as THREE from "https://unpkg.com/three@0.152.2/build/three.module.js";
 
-    <a-scene webxr="optionalFeatures: plane-detection" sceneinit>
-        <a-assets>
-            <img id="floortex" src="https://aframe.io/examples/showcase/assets/tex1024.png">
-        </a-assets>
+    let xrSession = null;
+    let xrRefSpace = null;
+    let renderer, scene, camera;
+    let detectedPlanes = new Map();
 
-        <a-entity id="planes" pdetect>
-        </a-entity>
+    function initThree() {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.xr.enabled = true;
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
 
-        <a-entity id="camrig" position="0 1.1 0" vrheight>
-            <a-entity id="camera" camera look-controls wasd-controls="acceleration:10"></a-entity>
-            <a-entity oculus-touch-controls="hand: left; model:true" padmove="turn:false" exitvr></a-entity>
-            <a-entity id="rpad" oculus-touch-controls="hand: right; model:true" padmove="gripud:true" exitvr></a-entity>
-        </a-entity>
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera();
+    }
 
-        <a-entity light="type: ambient; color: #888"></a-entity>
-        <a-entity light="type: directional; color: #FFF; intensity: 0.6; castShadow:true;shadowCameraFar:1000;shadowCameraNear:0.1;
-        shadowCameraBottom:-500;shadowCameraTop:500;shadowCameraLeft:-500;shadowCameraRight:500" position="-0.5 1 1" shadow></a-entity>
+    function drawPlane(xrPlane, planeMesh, planePose) {
+      // XRPlaneのpolygonはローカル座標系で2D (x, z) の配列
+      const polygon = xrPlane.polygon;
+      if (!polygon || polygon.length < 6) return planeMesh;
 
-        <a-entity line="start:0 0 0 ; end:200 0 0; color:#f00"
-                  line__2="start:0 0 0 ; end:0 200 0; color:#0f0"
-                  line__3="start:0 0 0 ; end:0 0 200; color:#00f"></a-entity>
+      // 2Dポリゴンを3D座標に変換
+      const vertices = [];
+      for (let i = 0; i < polygon.length; i += 2) {
+        vertices.push(new THREE.Vector3(polygon[i], 0, polygon[i + 1]));
+      }
 
-        <a-plane noar position="0 -0.001 0" rotation="-90 0 0" width="200" height="200" color="#888" material="shader:flat;src: #floortex;repeat:20 20;"></a-plane>
-        <a-sky noar material="shader:flat;color:#66a" radius="100" segments-height="6" segments-width="12"></a-sky>
+      // ポリゴンを三角形に分割
+      const indices = [];
+      for (let i = 1; i < vertices.length - 1; ++i) {
+        indices.push(0, i, i + 1);
+      }
 
-    </a-scene>
+      let geometry = new THREE.BufferGeometry().setFromPoints(vertices);
+      geometry.setIndex(indices);
+      geometry.computeVertexNormals();
 
+      if (!planeMesh) {
+        const material = new THREE.MeshBasicMaterial({
+          color: 0x00ff00,
+          opacity: 0.3,
+          transparent: true,
+          side: THREE.DoubleSide
+        });
+        planeMesh = new THREE.Mesh(geometry, material);
+        scene.add(planeMesh);
+      } else {
+        planeMesh.geometry.dispose();
+        planeMesh.geometry = geometry;
+      }
+
+      // XRPlaneの座標系からThree.jsのワールド座標系に反映
+      if (planePose) {
+        planeMesh.matrix.fromArray(planePose.transform.matrix);
+        planeMesh.matrix.decompose(planeMesh.position, planeMesh.quaternion, planeMesh.scale);
+      }
+      planeMesh.visible = true;
+      return planeMesh;
+    }
+
+    function onXRFrame(time, frame) {
+      let session = frame.session;
+      session.requestAnimationFrame(onXRFrame);
+
+      renderer.setSize(window.innerWidth, window.innerHeight);
+
+      // WebXR Plane Detection API
+      const worldInfo = frame.worldInformation;
+      const planes = worldInfo ? worldInfo.detectedPlanes : null;
+      if (planes) {
+        // Remove old planes
+        detectedPlanes.forEach((mesh, plane) => {
+          if (!planes.has(plane)) {
+            mesh.visible = false;
+            scene.remove(mesh);
+            detectedPlanes.delete(plane);
+          }
+        });
+        // Update or add new planes
+        for (let plane of planes) {
+          let mesh = detectedPlanes.get(plane);
+          const planePose = frame.getPose(plane.planeSpace, xrRefSpace);
+          if (planePose) {
+            mesh = drawPlane(plane, mesh, planePose);
+            if (mesh) detectedPlanes.set(plane, mesh);
+          }
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    async function startXR() {
+      if (!navigator.xr) {
+        alert('WebXR未対応です');
+        return;
+      }
+      try {
+        xrSession = await navigator.xr.requestSession('immersive-ar', {
+          requiredFeatures: ['local', 'plane-detection'],
+          planeDetectionState: { enabled: true, detectionMode: 'horizontal' }
+        });
+      } catch (e) {
+        alert('ARセッション開始失敗: ' + e);
+        return;
+      }
+
+      xrRefSpace = await xrSession.requestReferenceSpace('local');
+      renderer.xr.setReferenceSpace(xrRefSpace);
+      renderer.xr.setSession(xrSession);
+
+      xrSession.requestAnimationFrame(onXRFrame);
+      document.getElementById('start-ar').style.display = 'none';
+    }
+
+    initThree();
+    document.getElementById('start-ar').onclick = startXR;
+  </script>
 </body>
 </html>

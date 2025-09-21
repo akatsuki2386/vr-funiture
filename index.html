@@ -2,79 +2,122 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR Plane Detection Test</title>
+    <title>A-Frame WebXR Plane Detection</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        // WebXR Plane Detection Module sample component
-        AFRAME.registerComponent('pdetect', {
-            init: function() {
-                const sceneEl = this.el.sceneEl;
-                // optionalFeaturesを設定
-                sceneEl.setAttribute("webxr", "optionalFeatures: plane-detection, hit-test");
-                this.planes = new Map(); // 検出された平面をMapで管理
-
-                sceneEl.addEventListener("enter-vr", ev => {
-                    this.planes.clear(); // セッション開始時にクリア
-                });
+        // scene init component
+        AFRAME.registerComponent('sceneinit', {
+            schema: {
+                query:{type:"array"}
             },
-
-            tick: function(time, dur) {
-                const session = this.el.sceneEl.xrSession;
-                if (!session || !session.frame) return;
-
-                const frame = session.frame;
-                const planesList = frame.detectedPlanes;
-
-                // 新しい平面をチェックして追加
-                planesList.forEach(plane => {
-                    if (!this.planes.has(plane.uuid)) {
-                        const planeEntity = document.createElement('a-entity');
-                        planeEntity.setAttribute('geometry', {
-                            primitive: 'plane'
-                        });
-                        planeEntity.setAttribute('material', {
-                            color: '#00ff00',
-                            side: 'double',
-                            opacity: 0.3,
-                            transparent: true
-                        });
-                        this.el.appendChild(planeEntity);
-                        this.planes.set(plane.uuid, planeEntity);
-                    }
-                });
-
-                // 既存の平面の更新
-                this.planes.forEach((entity, uuid) => {
-                    const plane = planesList.get(uuid);
-                    if (plane) {
-                        // 平面の姿勢（ポーズ）を更新
-                        const pose = frame.getPose(plane.planeSpace, this.el.sceneEl.renderer.xr.getReferenceSpace());
-                        if (pose) {
-                            entity.object3D.position.copy(pose.transform.position);
-                            entity.object3D.quaternion.copy(pose.transform.orientation);
-                        }
-
-                        // ポリゴン（形状）の更新
-                        const polygon = plane.polygon;
-                        const vertices = [];
-                        for (let i = 0; i < polygon.length; i++) {
-                            vertices.push(new THREE.Vector3(polygon[i].x, polygon[i].y, polygon[i].z));
-                        }
-                        
-                        // ポリゴンからジオメトリを再構築（より簡潔な方法）
-                        const shape = new THREE.Shape(vertices);
-                        const geometry = new THREE.ShapeGeometry(shape);
-                        entity.setObject3D('mesh', new THREE.Mesh(geometry, entity.components.material.material));
-                    }
-                });
+            init:function() {
+                console.log("start");
+                // init code here
+            },
+            tick:function(time,dur) {
+                // called each frame 
             }
         });
+
+        // WebXR Plane Detection Module sample component
+        AFRAME.registerComponent('pdetect',{
+            init:function() {
+                const sc = this.el.sceneEl;
+                // set option feature
+                sc.setAttribute("webxr","optionalFeatures: plane-detection");
+                this.start = false; 
+                sc.addEventListener("enter-vr", ev=>{
+                    this.pf = 0; 
+                    setTimeout(ev=>{
+                        this.start = true; 
+                    }, 1000);
+                });
+            },
+            update:function(old) {
+            },
+            tick:function(time,dur) {
+                if(!this.start) return; 
+                const fr = this.el.sceneEl.frame;
+                if(!fr) return; 
+                // 検知された面
+                const p = fr.detectedPlanes;
+                if(!p) return; 
+                if(p.size === 0) return; 
+                //最初の一回だけ(手抜き)
+                if(this.pf++ > 0) return; 
+                const ref = this.el.sceneEl.renderer.xr.getReferenceSpace();
+                const pl = [];
+                p.forEach(o=>{
+                    //面の向きのquaternionの取得
+                    const planePose = fr.getPose(o.planeSpace, ref);
+                    pl.push([o.polygon, planePose.transform.matrix]);
+                });
+                setplanes(this.el.object3D, pl);
+            },
+        });
+
+        //面の描画
+        let col = 0xf00000;
+        function setplanes(to,pl) {
+            console.log(pl.length);
+            to.children = []; 
+            pl.forEach(p=>{
+                const poly = p[0];
+                const geometry = new THREE.BufferGeometry();
+                const vertices = new Float32Array([
+                    poly[0].x,poly[0].y,poly[0].z,
+                    poly[1].x,poly[1].y,poly[1].z,
+                    poly[2].x,poly[2].y,poly[2].z,
+                    
+                    poly[2].x,poly[2].y,poly[2].z,
+                    poly[3].x,poly[3].y,poly[3].z,
+                    poly[4].x,poly[4].y,poly[4].z,
+                ]);
+                geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+                const material = new THREE.MeshBasicMaterial({ color: col, opacity: 0.5, side: THREE.FrontSide });
+                const mesh = new THREE.Mesh(geometry, material);
+                col += 32; 
+                mesh.matrix.elements = p[1];
+                mesh.matrix.decompose(mesh.position, mesh.rotation, mesh.scale);
+                to.add(mesh);
+                console.log(mesh.position);
+                console.log(mesh.rotation);
+                //面の向きで色を変える
+                if(Math.abs(mesh.rotation.x) < 0.01) mesh.material.color = new THREE.Color(0x00f000);
+                if(Math.abs(Math.abs(mesh.rotation.x) - Math.PI) < 0.01) mesh.material.color = new THREE.Color(0x0000f0);
+            });
+        }
     </script>
 </head>
 <body>
-    <a-scene webxr="requiredFeatures: hit-test; optionalFeatures: plane-detection;">
-        <a-entity pdetect></a-entity>
-        <a-camera></a-camera>
+
+    <a-scene webxr="optionalFeatures: plane-detection" sceneinit>
+        <a-assets>
+            <img id="floortex" src="https://aframe.io/examples/showcase/assets/tex1024.png">
+        </a-assets>
+
+        <a-entity id="planes" pdetect>
+        </a-entity>
+
+        <a-entity id="camrig" position="0 1.1 0" vrheight>
+            <a-entity id="camera" camera look-controls wasd-controls="acceleration:10"></a-entity>
+            <a-entity oculus-touch-controls="hand: left; model:true" padmove="turn:false" exitvr></a-entity>
+            <a-entity id="rpad" oculus-touch-controls="hand: right; model:true" padmove="gripud:true" exitvr></a-entity>
+        </a-entity>
+
+        <a-entity light="type: ambient; color: #888"></a-entity>
+        <a-entity light="type: directional; color: #FFF; intensity: 0.6; castShadow:true;shadowCameraFar:1000;shadowCameraNear:0.1;
+        shadowCameraBottom:-500;shadowCameraTop:500;shadowCameraLeft:-500;shadowCameraRight:500" position="-0.5 1 1" shadow></a-entity>
+
+        <a-entity line="start:0 0 0 ; end:200 0 0; color:#f00"
+                  line__2="start:0 0 0 ; end:0 200 0; color:#0f0"
+                  line__3="start:0 0 0 ; end:0 0 200; color:#00f"></a-entity>
+
+        <a-plane noar position="0 -0.001 0" rotation="-90 0 0" width="200" height="200" color="#888" material="shader:flat;src: #floortex;repeat:20 20;"></a-plane>
+        <a-sky noar material="shader:flat;color:#66a" radius="100" segments-height="6" segments-width="12"></a-sky>
+
     </a-scene>
+
 </body>
 </html>

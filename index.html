@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR Both Controllers - Offset-based Move</title>
+    <title>WebXR Both Controllers - Plane-following Move</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -34,8 +34,6 @@
         // つかんでいるキューブを管理するための変数
         let grabbedObject = null;
         let grabbingController = null; // どのコントローラーでつかんだかを追跡
-        // オフセットを保持する変数
-        const offset = new THREE.Vector3();
 
         init();
         animate();
@@ -117,9 +115,6 @@
                 grabbedObject = intersectedObject;
                 grabbingController = controller;
                 
-                // つかんだキューブとレティクル位置のオフセットを計算
-                offset.copy(grabbedObject.position).sub(reticle.position);
-
                 console.log('キューブをつかみました！');
 
             } else {
@@ -184,10 +179,9 @@
                     }
                 }
 
-                // --- つかんでいるキューブの追従処理 ---
+                // --- つかんでいるキューブの平面追従処理 ---
                 if (grabbedObject && reticle.visible) {
-                    // レティクルの位置にオフセットを加算して位置を更新
-                    grabbedObject.position.copy(reticle.position).add(offset);
+                    grabbedObject.position.setFromMatrixPosition(reticle.matrix);
                 }
                 // --- 追従処理 終わり ---
             }

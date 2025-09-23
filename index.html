@@ -1,177 +1,198 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <title>WebXR Plane Detection</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <style>
-    body { margin: 0; overflow: hidden; background-color: #000; }
-    #overlay {
-        position: absolute;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        color: white;
-        font-family: sans-serif;
-        font-size: 1.2em;
-        text-shadow: 2px 2px 4px #000000;
-        z-index: 1000;
-        display: none;
-    }
-  </style>
+    <meta charset="utf-8">
+    <title>WebXR Both Controllers - Offset-based Move</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
 </head>
 <body>
-  <div id="overlay">平面を検出しています...</div>
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
-        "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
-      }
-    }
-  </script>
-  <script type="module">
-    import * as THREE from 'three';
-    import { ARButton } from 'three/addons/webxr/ARButton.js';
-
-    let camera, scene, renderer;
-    let controller;
-    let hitTestSource, hitTestSourceRequested = false;
-    let detectedPlanes = new Map();
-    let isARSessionStarted = false;
-
-    init();
-
-    function init() {
-        const container = document.createElement('div');
-        document.body.appendChild(container);
-
-        scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-
-        const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-        light.position.set(0.5, 1, 0.25);
-        scene.add(light);
-
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.xr.enabled = true;
-        renderer.xr.setReferenceSpaceType('local');
-        container.appendChild(renderer.domElement);
-
-        document.body.appendChild(ARButton.createButton(renderer, {
-            requiredFeatures: ['hit-test', 'plane-detection'],
-            optionalFeatures: ['dom-overlay'],
-            domOverlay: { root: document.body }
-        }));
-
-        const overlay = document.getElementById('overlay');
-        renderer.xr.addEventListener('sessionstart', () => {
-            isARSessionStarted = true;
-            overlay.style.display = 'block';
-        });
-
-        renderer.xr.addEventListener('sessionend', () => {
-            isARSessionStarted = false;
-            overlay.style.display = 'none';
-            // Reset detected planes
-            detectedPlanes.forEach(mesh => scene.remove(mesh));
-            detectedPlanes.clear();
-        });
-
-        // Add touch controller for interaction
-        controller = renderer.xr.getController(0);
-        controller.addEventListener('select', onSelect);
-        scene.add(controller);
-
-        window.addEventListener('resize', onWindowResize);
-    }
-
-    function onWindowResize() {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    function onSelect() {
-        if (isARSessionStarted) {
-            // Your logic for placing an object on a detected plane could go here.
-            // This example is for demonstration of plane detection itself.
-            // console.log("Select event fired");
+    <script type="importmap">
+        {
+          "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.155.0/examples/jsm/"
+          }
         }
-    }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { ARButton } from 'three/addons/webxr/ARButton.js';
+        import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
-    function updateDetectedPlanes(frame) {
-        if (!frame) return;
+        let camera, scene, renderer;
+        let controller1, controller2;
+        let reticle;
+        let hitTestSource = null;
+        let hitTestSourceRequested = false;
 
-        const planes = frame.planes;
-        const newPlanes = new Set(planes);
+        // キューブを管理するための配列
+        const intersectableObjects = [];
 
-        // Remove old planes that are no longer detected
-        for (const [uuid, mesh] of detectedPlanes) {
-            if (!newPlanes.has(uuid)) {
-                scene.remove(mesh);
-                detectedPlanes.delete(uuid);
-            }
+        // つかんでいるキューブを管理するための変数
+        let grabbedObject = null;
+        let grabbingController = null; // どのコントローラーでつかんだかを追跡
+        // オフセットを保持する変数
+        const offset = new THREE.Vector3();
+
+        init();
+        animate();
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local', 'hit-test'] }));
+
+            renderer.xr.addEventListener('sessionstart', () => {
+                const controllerModelFactory = new XRControllerModelFactory();
+
+                // 右手コントローラーを取得 (インデックス 0)
+                controller1 = renderer.xr.getController(0);
+                scene.add(controller1);
+                const controllerGrip1 = renderer.xr.getControllerGrip(0);
+                controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
+                scene.add(controllerGrip1);
+
+                // レイキャストを可視化するための線
+                const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(0, 0, -5)
+                ]);
+                const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+                const line1 = new THREE.Line(lineGeometry, lineMaterial);
+                controller1.add(line1);
+
+                // 左手コントローラーを取得 (インデックス 1)
+                controller2 = renderer.xr.getController(1);
+                scene.add(controller2);
+                const controllerGrip2 = renderer.xr.getControllerGrip(1);
+                controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
+                scene.add(controllerGrip2);
+                const line2 = new THREE.Line(lineGeometry, lineMaterial);
+                controller2.add(line2);
+
+                // 両方のコントローラーにイベントリスナーを追加
+                controller1.addEventListener('selectstart', onSelectStart);
+                controller1.addEventListener('selectend', onSelectEnd);
+                controller2.addEventListener('selectstart', onSelectStart);
+                controller2.addEventListener('selectend', onSelectEnd);
+            });
+
+            reticle = new THREE.Mesh(
+                new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
+                new THREE.MeshBasicMaterial({ color: 0xffffff })
+            );
+            reticle.matrixAutoUpdate = false;
+            reticle.visible = false;
+            scene.add(reticle);
+
+            window.addEventListener('resize', onWindowResize);
         }
 
-        // Add new planes and update existing ones
-        for (const plane of planes) {
-            let mesh = detectedPlanes.get(plane.uuid);
-            if (mesh) {
-                // Update existing plane's pose and geometry
-                const pose = frame.getPose(plane.planeSpace, renderer.xr.getReferenceSpace());
-                if (pose) {
-                    mesh.position.copy(pose.transform.position);
-                    mesh.quaternion.copy(pose.transform.quaternion);
-                }
+        function onSelectStart(event) {
+            const controller = event.target;
+            const tempMatrix = new THREE.Matrix4();
+            tempMatrix.identity().extractRotation(controller.matrixWorld);
 
-                const polygon = plane.polygon;
-                const points = [];
-                for (let i = 0; i < polygon.length; i++) {
-                    points.push(new THREE.Vector2(polygon[i].x, polygon[i].z));
-                }
-                const shape = new THREE.Shape(points);
-                const geometry = new THREE.ShapeGeometry(shape);
-                mesh.geometry.dispose();
-                mesh.geometry = geometry;
-                mesh.geometry.rotateX(-Math.PI / 2); // Rotate to lie flat on the plane
+            const raycaster = new THREE.Raycaster();
+            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+
+            // シーン内のキューブに対して交差判定
+            const intersects = raycaster.intersectObjects(intersectableObjects);
+
+            if (intersects.length > 0) {
+                const intersectedObject = intersects[0].object;
+                
+                // キューブを「つかんだ」状態にする
+                grabbedObject = intersectedObject;
+                grabbingController = controller;
+                
+                // つかんだキューブとレティクル位置のオフセットを計算
+                offset.copy(grabbedObject.position).sub(reticle.position);
+
+                console.log('キューブをつかみました！');
+
             } else {
-                // Create new mesh for a new plane
-                const pose = frame.getPose(plane.planeSpace, renderer.xr.getReferenceSpace());
-                if (pose) {
-                    const polygon = plane.polygon;
-                    const points = [];
-                    for (let i = 0; i < polygon.length; i++) {
-                        points.push(new THREE.Vector2(polygon[i].x, polygon[i].z));
-                    }
-                    const shape = new THREE.Shape(points);
-                    const geometry = new THREE.ShapeGeometry(shape);
-                    geometry.rotateX(-Math.PI / 2);
-
-                    const material = new THREE.MeshBasicMaterial({
-                        color: new THREE.Color(Math.random(), Math.random(), Math.random()),
-                        transparent: true,
-                        opacity: 0.5,
-                        side: THREE.DoubleSide
-                    });
-                    const newMesh = new THREE.Mesh(geometry, material);
-                    newMesh.position.copy(pose.transform.position);
-                    newMesh.quaternion.copy(pose.transform.quaternion);
-                    scene.add(newMesh);
-                    detectedPlanes.set(plane.uuid, newMesh);
+                // 何にも当たらない場合、新しいキューブを生成
+                if (reticle.visible) {
+                    const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+                    const material = new THREE.MeshNormalMaterial();
+                    const mesh = new THREE.Mesh(geometry, material);
+                    
+                    mesh.position.setFromMatrixPosition(reticle.matrix);
+                    scene.add(mesh);
+                    intersectableObjects.push(mesh); // 配列に追加
                 }
             }
         }
-    }
 
-    renderer.setAnimationLoop(function(timestamp, frame) {
-        if (frame) {
-            updateDetectedPlanes(frame);
+        function onSelectEnd() {
+            if (grabbedObject) {
+                grabbedObject = null;
+                grabbingController = null;
+                console.log('キューブを離しました！');
+            }
         }
-        renderer.render(scene, camera);
-    });
-  </script>
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            renderer.setAnimationLoop(render);
+        }
+
+        function render(time, frame) {
+            if (frame) {
+                const session = renderer.xr.getSession();
+
+                if (!hitTestSourceRequested) {
+                    session.requestReferenceSpace('viewer').then(function (referenceSpace) {
+                        session.requestHitTestSource({ space: referenceSpace }).then(function (source) {
+                            hitTestSource = source;
+                        });
+                    });
+                    session.addEventListener('end', function () {
+                        hitTestSourceRequested = false;
+                        hitTestSource = null;
+                    });
+                    hitTestSourceRequested = true;
+                }
+
+                if (hitTestSource) {
+                    const hitTestResults = frame.getHitTestResults(hitTestSource);
+
+                    if (hitTestResults.length > 0) {
+                        const hit = hitTestResults[0];
+                        const referenceSpace = renderer.xr.getReferenceSpace();
+                        reticle.visible = true;
+                        reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
+                    } else {
+                        reticle.visible = false;
+                    }
+                }
+
+                // --- つかんでいるキューブの追従処理 ---
+                if (grabbedObject && reticle.visible) {
+                    // レティクルの位置にオフセットを加算して位置を更新
+                    grabbedObject.position.copy(reticle.position).add(offset);
+                }
+                // --- 追従処理 終わり ---
+            }
+            renderer.render(scene, camera);
+        }
+    </script>
 </body>
 </html>

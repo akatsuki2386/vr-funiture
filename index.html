@@ -1,145 +1,177 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebXR Plane Detection with Three.js</title>
-    <style>
-        body { margin: 0; overflow: hidden; }
-        #ar-button {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 100;
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-    </style>
+  <meta charset="utf-8">
+  <title>WebXR Plane Detection</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    body { margin: 0; overflow: hidden; background-color: #000; }
+    #overlay {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: white;
+        font-family: sans-serif;
+        font-size: 1.2em;
+        text-shadow: 2px 2px 4px #000000;
+        z-index: 1000;
+        display: none;
+    }
+  </style>
 </head>
 <body>
-    <button id="ar-button">Start AR</button>
-    <script type="module">
-        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.149/build/three.module.js';
+  <div id="overlay">平面を検出しています...</div>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { ARButton } from 'three/addons/webxr/ARButton.js';
 
-        let scene, camera, renderer;
-        let xrSession = null;
+    let camera, scene, renderer;
+    let controller;
+    let hitTestSource, hitTestSourceRequested = false;
+    let detectedPlanes = new Map();
+    let isARSessionStarted = false;
 
-        const arButton = document.getElementById('ar-button');
+    init();
 
-        // WebXRが利用可能かチェック
-        if (navigator.xr) {
-            navigator.xr.isSessionSupported('immersive-ar').then(isSupported => {
-                if (isSupported) {
-                    arButton.addEventListener('click', onButtonClick);
-                } else {
-                    arButton.textContent = 'AR Not Supported';
-                    arButton.disabled = true;
-                }
-            });
-        } else {
-            arButton.textContent = 'WebXR Not Supported';
-            arButton.disabled = true;
+    function init() {
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+
+        const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+        light.position.set(0.5, 1, 0.25);
+        scene.add(light);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        renderer.xr.setReferenceSpaceType('local');
+        container.appendChild(renderer.domElement);
+
+        document.body.appendChild(ARButton.createButton(renderer, {
+            requiredFeatures: ['hit-test', 'plane-detection'],
+            optionalFeatures: ['dom-overlay'],
+            domOverlay: { root: document.body }
+        }));
+
+        const overlay = document.getElementById('overlay');
+        renderer.xr.addEventListener('sessionstart', () => {
+            isARSessionStarted = true;
+            overlay.style.display = 'block';
+        });
+
+        renderer.xr.addEventListener('sessionend', () => {
+            isARSessionStarted = false;
+            overlay.style.display = 'none';
+            // Reset detected planes
+            detectedPlanes.forEach(mesh => scene.remove(mesh));
+            detectedPlanes.clear();
+        });
+
+        // Add touch controller for interaction
+        controller = renderer.xr.getController(0);
+        controller.addEventListener('select', onSelect);
+        scene.add(controller);
+
+        window.addEventListener('resize', onWindowResize);
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function onSelect() {
+        if (isARSessionStarted) {
+            // Your logic for placing an object on a detected plane could go here.
+            // This example is for demonstration of plane detection itself.
+            // console.log("Select event fired");
         }
+    }
 
-        function onButtonClick() {
-            if (xrSession === null) {
-                // ARセッションを開始
-                navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['plane-detection'] })
-                    .then(onSessionStarted)
-                    .catch(err => {
-                        console.error('Failed to start XR session', err);
-                    });
-            } else {
-                xrSession.end();
+    function updateDetectedPlanes(frame) {
+        if (!frame) return;
+
+        const planes = frame.planes;
+        const newPlanes = new Set(planes);
+
+        // Remove old planes that are no longer detected
+        for (const [uuid, mesh] of detectedPlanes) {
+            if (!newPlanes.has(uuid)) {
+                scene.remove(mesh);
+                detectedPlanes.delete(uuid);
             }
         }
 
-        function onSessionStarted(session) {
-            xrSession = session;
-            setupScene();
+        // Add new planes and update existing ones
+        for (const plane of planes) {
+            let mesh = detectedPlanes.get(plane.uuid);
+            if (mesh) {
+                // Update existing plane's pose and geometry
+                const pose = frame.getPose(plane.planeSpace, renderer.xr.getReferenceSpace());
+                if (pose) {
+                    mesh.position.copy(pose.transform.position);
+                    mesh.quaternion.copy(pose.transform.quaternion);
+                }
 
-            xrSession.onend = () => {
-                xrSession = null;
-                // セッション終了後のクリーンアップ
-                arButton.textContent = 'Start AR';
-            };
-
-            xrSession.requestAnimationFrame(onXRFrame);
-            arButton.textContent = 'Stop AR';
-        }
-
-        function setupScene() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
-
-            // WebGLRendererをARモードで設定
-            renderer = new THREE.WebGLRenderer({ alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true;
-            document.body.appendChild(renderer.domElement);
-
-            renderer.xr.setSession(xrSession);
-
-            // 平面を可視化するためのマテリアル
-            const planeMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true, transparent: true, opacity: 0.5 });
-            scene.userData.planes = new Map(); // 検出された平面を格納するMap
-            scene.userData.planeMaterial = planeMaterial;
-
-            window.addEventListener('resize', onWindowResize, false);
-        }
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        function onXRFrame(time, frame) {
-            if (!xrSession) return;
-
-            const session = frame.session;
-            const referenceSpace = session.renderState.baseLayer.getXRReferenceSpace();
-
-            const detectedPlanes = frame.detectedPlanes;
-
-            // 既存の平面を更新または削除
-            const planesToRemove = new Set(scene.userData.planes.keys());
-            for (const plane of detectedPlanes) {
-                planesToRemove.delete(plane.uuid);
-                
-                let planeMesh = scene.userData.planes.get(plane.uuid);
                 const polygon = plane.polygon;
-                const geometry = new THREE.BufferGeometry().setFromPoints(polygon.map(p => new THREE.Vector3(p.x, p.y, p.z)));
-                
-                if (planeMesh) {
-                    // 既存の平面を更新
-                    planeMesh.geometry.dispose(); // 古いジオメトリを破棄
-                    planeMesh.geometry = geometry;
-                    planeMesh.matrix.fromArray(plane.plane.transform.matrix);
-                } else {
-                    // 新しい平面を作成
-                    planeMesh = new THREE.Mesh(geometry, scene.userData.planeMaterial);
-                    planeMesh.matrixAutoUpdate = false;
-                    planeMesh.matrix.fromArray(plane.plane.transform.matrix);
-                    scene.add(planeMesh);
-                    scene.userData.planes.set(plane.uuid, planeMesh);
+                const points = [];
+                for (let i = 0; i < polygon.length; i++) {
+                    points.push(new THREE.Vector2(polygon[i].x, polygon[i].z));
+                }
+                const shape = new THREE.Shape(points);
+                const geometry = new THREE.ShapeGeometry(shape);
+                mesh.geometry.dispose();
+                mesh.geometry = geometry;
+                mesh.geometry.rotateX(-Math.PI / 2); // Rotate to lie flat on the plane
+            } else {
+                // Create new mesh for a new plane
+                const pose = frame.getPose(plane.planeSpace, renderer.xr.getReferenceSpace());
+                if (pose) {
+                    const polygon = plane.polygon;
+                    const points = [];
+                    for (let i = 0; i < polygon.length; i++) {
+                        points.push(new THREE.Vector2(polygon[i].x, polygon[i].z));
+                    }
+                    const shape = new THREE.Shape(points);
+                    const geometry = new THREE.ShapeGeometry(shape);
+                    geometry.rotateX(-Math.PI / 2);
+
+                    const material = new THREE.MeshBasicMaterial({
+                        color: new THREE.Color(Math.random(), Math.random(), Math.random()),
+                        transparent: true,
+                        opacity: 0.5,
+                        side: THREE.DoubleSide
+                    });
+                    const newMesh = new THREE.Mesh(geometry, material);
+                    newMesh.position.copy(pose.transform.position);
+                    newMesh.quaternion.copy(pose.transform.quaternion);
+                    scene.add(newMesh);
+                    detectedPlanes.set(plane.uuid, newMesh);
                 }
             }
-
-            // 検出されなくなった平面をシーンから削除
-            for (const uuid of planesToRemove) {
-                const planeMesh = scene.userData.planes.get(uuid);
-                scene.remove(planeMesh);
-                planeMesh.geometry.dispose();
-                scene.userData.planes.delete(uuid);
-            }
-
-            renderer.render(scene, camera);
-            session.requestAnimationFrame(onXRFrame);
         }
+    }
 
-    </script>
+    renderer.setAnimationLoop(function(timestamp, frame) {
+        if (frame) {
+            updateDetectedPlanes(frame);
+        }
+        renderer.render(scene, camera);
+    });
+  </script>
 </body>
 </html>

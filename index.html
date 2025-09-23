@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebXR Plane Detection AR</title>
+    <title>WebXR Plane Detection with Three.js</title>
     <style>
         body { margin: 0; overflow: hidden; }
         #ar-button {
@@ -11,60 +11,83 @@
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            padding: 15px 30px;
-            font-size: 1.2em;
+            z-index: 100;
+            padding: 10px 20px;
+            font-size: 16px;
             cursor: pointer;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            z-index: 1000;
         }
     </style>
 </head>
 <body>
     <button id="ar-button">Start AR</button>
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.149/build/three.module.js';
+
+        let scene, camera, renderer;
+        let xrSession = null;
+
+        const arButton = document.getElementById('ar-button');
+
+        // WebXRが利用可能かチェック
+        if (navigator.xr) {
+            navigator.xr.isSessionSupported('immersive-ar').then(isSupported => {
+                if (isSupported) {
+                    arButton.addEventListener('click', onButtonClick);
+                } else {
+                    arButton.textContent = 'AR Not Supported';
+                    arButton.disabled = true;
+                }
+            });
+        } else {
+            arButton.textContent = 'WebXR Not Supported';
+            arButton.disabled = true;
+        }
+
+        function onButtonClick() {
+            if (xrSession === null) {
+                // ARセッションを開始
+                navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['plane-detection'] })
+                    .then(onSessionStarted)
+                    .catch(err => {
+                        console.error('Failed to start XR session', err);
+                    });
+            } else {
+                xrSession.end();
             }
         }
-    </script>
-    <script type="module">
-        import * as THREE from 'three';
-        import { ARButton } from 'three/addons/webxr/ARButton.js';
 
-        let camera, scene, renderer, controller;
+        function onSessionStarted(session) {
+            xrSession = session;
+            setupScene();
 
-        const planes = new Map();
-        const planeMaterial = new THREE.MeshBasicMaterial({
-            color: 0x00ff00,
-            transparent: true,
-            opacity: 0.5,
-            side: THREE.DoubleSide
-        });
-        const planeGeometry = new THREE.PlaneGeometry(1, 1);
+            xrSession.onend = () => {
+                xrSession = null;
+                // セッション終了後のクリーンアップ
+                arButton.textContent = 'Start AR';
+            };
 
-        init();
-        animate();
+            xrSession.requestAnimationFrame(onXRFrame);
+            arButton.textContent = 'Stop AR';
+        }
 
-        function init() {
+        function setupScene() {
             scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
 
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
+            // WebGLRendererをARモードで設定
+            renderer = new THREE.WebGLRenderer({ alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.outputColorSpace = THREE.SRGBColorSpace;
             renderer.xr.enabled = true;
             document.body.appendChild(renderer.domElement);
 
-            document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test', 'plane-detection'] }));
+            renderer.xr.setSession(xrSession);
 
-            window.addEventListener('resize', onWindowResize);
+            // 平面を可視化するためのマテリアル
+            const planeMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true, transparent: true, opacity: 0.5 });
+            scene.userData.planes = new Map(); // 検出された平面を格納するMap
+            scene.userData.planeMaterial = planeMaterial;
+
+            window.addEventListener('resize', onWindowResize, false);
         }
 
         function onWindowResize() {
@@ -73,58 +96,50 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        function animate() {
-            renderer.setAnimationLoop(render);
-        }
+        function onXRFrame(time, frame) {
+            if (!xrSession) return;
 
-        function render(timestamp, frame) {
-            if (frame) {
-                const session = renderer.xr.getSession();
-                if (session) {
-                    const detectedPlanes = session.getDetectedPlanes();
-                    for (const plane of detectedPlanes) {
-                        if (!planes.has(plane.plane.uuid)) {
-                            const newPlane = createPlaneMesh(plane.plane);
-                            scene.add(newPlane);
-                            planes.set(plane.plane.uuid, newPlane);
-                        }
-                        updatePlaneMesh(planes.get(plane.plane.uuid), plane.plane);
-                    }
-                    for (const [uuid, mesh] of planes.entries()) {
-                        let planeFound = false;
-                        for (const plane of detectedPlanes) {
-                            if (plane.plane.uuid === uuid) {
-                                planeFound = true;
-                                break;
-                            }
-                        }
-                        if (!planeFound) {
-                            scene.remove(mesh);
-                            planes.delete(uuid);
-                        }
-                    }
+            const session = frame.session;
+            const referenceSpace = session.renderState.baseLayer.getXRReferenceSpace();
+
+            const detectedPlanes = frame.detectedPlanes;
+
+            // 既存の平面を更新または削除
+            const planesToRemove = new Set(scene.userData.planes.keys());
+            for (const plane of detectedPlanes) {
+                planesToRemove.delete(plane.uuid);
+                
+                let planeMesh = scene.userData.planes.get(plane.uuid);
+                const polygon = plane.polygon;
+                const geometry = new THREE.BufferGeometry().setFromPoints(polygon.map(p => new THREE.Vector3(p.x, p.y, p.z)));
+                
+                if (planeMesh) {
+                    // 既存の平面を更新
+                    planeMesh.geometry.dispose(); // 古いジオメトリを破棄
+                    planeMesh.geometry = geometry;
+                    planeMesh.matrix.fromArray(plane.plane.transform.matrix);
+                } else {
+                    // 新しい平面を作成
+                    planeMesh = new THREE.Mesh(geometry, scene.userData.planeMaterial);
+                    planeMesh.matrixAutoUpdate = false;
+                    planeMesh.matrix.fromArray(plane.plane.transform.matrix);
+                    scene.add(planeMesh);
+                    scene.userData.planes.set(plane.uuid, planeMesh);
                 }
             }
-            renderer.render(scene, camera);
-        }
 
-        function createPlaneMesh(plane) {
-            const mesh = new THREE.Mesh(planeGeometry, planeMaterial);
-            mesh.matrixAutoUpdate = false;
-            return mesh;
-        }
-
-        function updatePlaneMesh(mesh, plane) {
-            mesh.matrix.fromArray(plane.transform.matrix);
-            const polygon = plane.polygon;
-            const vertices = [];
-            for (let i = 0; i < polygon.length; i++) {
-                vertices.push(new THREE.Vector2(polygon[i].x, polygon[i].z));
+            // 検出されなくなった平面をシーンから削除
+            for (const uuid of planesToRemove) {
+                const planeMesh = scene.userData.planes.get(uuid);
+                scene.remove(planeMesh);
+                planeMesh.geometry.dispose();
+                scene.userData.planes.delete(uuid);
             }
-            const shape = new THREE.Shape(vertices);
-            mesh.geometry.dispose();
-            mesh.geometry = new THREE.ShapeGeometry(shape);
+
+            renderer.render(scene, camera);
+            session.requestAnimationFrame(onXRFrame);
         }
+
     </script>
 </body>
 </html>

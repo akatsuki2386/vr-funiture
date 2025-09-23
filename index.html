@@ -2,18 +2,18 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR Plane Detection</title>
+    <title>WebXR Mesh Detection</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
     <script>
-        AFRAME.registerComponent('plane-detector', {
+        AFRAME.registerComponent('mesh-detector', {
             init: function() {
                 const sceneEl = this.el.sceneEl;
-                sceneEl.setAttribute('webxr', 'optionalFeatures: plane-detection');
-                this.planes = new Map();
+                sceneEl.setAttribute('webxr', 'optionalFeatures: mesh-detection');
+                this.meshes = new Map();
                 this.renderer = sceneEl.renderer.xr;
                 sceneEl.addEventListener('enter-vr', () => {
-                    this.planes.clear();
+                    this.meshes.clear();
                     this.el.innerHTML = '';
                 });
             },
@@ -21,42 +21,42 @@
                 const xrFrame = this.el.sceneEl.frame;
                 if (!xrFrame) return;
 
-                const detectedPlanes = xrFrame.detectedPlanes;
-                if (!detectedPlanes) return;
+                const detectedMeshes = xrFrame.detectedMeshes;
+                if (!detectedMeshes) return;
 
                 const referenceSpace = this.renderer.getReferenceSpace();
-                
-                detectedPlanes.forEach(plane => {
-                    if (this.planes.has(plane.uuid)) {
+
+                detectedMeshes.forEach(mesh => {
+                    if (this.meshes.has(mesh.uuid)) {
                         return; // 既に描画済み
                     }
 
-                    const pose = xrFrame.getPose(plane.planeSpace, referenceSpace);
+                    const pose = xrFrame.getPose(mesh.meshSpace, referenceSpace);
                     if (!pose) return;
 
-                    const polygon = plane.polygon;
-                    if (polygon.length < 3) return;
-                    
-                    const vertices = new Float32Array(polygon.flatMap(v => [v.x, v.y, v.z]));
                     const geometry = new THREE.BufferGeometry();
-                    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-                    geometry.setIndex(new THREE.BufferAttribute(THREE.ShapeUtils.triangulateShape(polygon, []), 1));
-
-                    const material = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
-                    const mesh = new THREE.Mesh(geometry, material);
-                    mesh.matrixAutoUpdate = false;
-                    mesh.matrix.fromArray(pose.transform.matrix);
+                    geometry.setAttribute('position', new THREE.BufferAttribute(mesh.vertices, 3));
+                    geometry.setIndex(new THREE.BufferAttribute(mesh.indices, 1));
                     
-                    this.el.object3D.add(mesh);
-                    this.planes.set(plane.uuid, mesh);
+                    const material = new THREE.MeshBasicMaterial({ 
+                        color: Math.random() * 0xffffff, 
+                        wireframe: true, 
+                        side: THREE.DoubleSide 
+                    });
+                    const meshObject = new THREE.Mesh(geometry, material);
+                    meshObject.matrixAutoUpdate = false;
+                    meshObject.matrix.fromArray(pose.transform.matrix);
+
+                    this.el.object3D.add(meshObject);
+                    this.meshes.set(mesh.uuid, meshObject);
                 });
 
-                detectedPlanes.forEach(plane => {
-                    const mesh = this.planes.get(plane.uuid);
-                    if (mesh) {
-                        const pose = xrFrame.getPose(plane.planeSpace, referenceSpace);
+                detectedMeshes.forEach(mesh => {
+                    const meshObject = this.meshes.get(mesh.uuid);
+                    if (meshObject) {
+                        const pose = xrFrame.getPose(mesh.meshSpace, referenceSpace);
                         if (pose) {
-                            mesh.matrix.fromArray(pose.transform.matrix);
+                            meshObject.matrix.fromArray(pose.transform.matrix);
                         }
                     }
                 });
@@ -65,11 +65,10 @@
     </script>
 </head>
 <body>
-    <a-scene webxr="requiredFeatures: local-floor; optionalFeatures: plane-detection">
-        <a-entity id="plane-group" plane-detector></a-entity>
+    <a-scene webxr="requiredFeatures: local; optionalFeatures: mesh-detection">
+        <a-entity id="mesh-group" mesh-detector></a-entity>
         <a-entity camera look-controls></a-entity>
         <a-entity light="type: ambient; color: #888"></a-entity>
-        <a-entity light="type: directional; color: #FFF; intensity: 0.6" position="-0.5 1 1"></a-entity>
     </a-scene>
 </body>
 </html>

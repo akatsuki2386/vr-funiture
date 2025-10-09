@@ -11,10 +11,10 @@
 <body>
     <script type="importmap">
         {
-            "imports": {
-                "three": "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js",
-                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.155.0/examples/jsm/"
-            }
+          "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.155.0/examples/jsm/"
+          }
         }
     </script>
     <script type="module">
@@ -28,15 +28,16 @@
         let hitTestSource = null;
         let hitTestSourceRequested = false;
 
+        // キューブを管理するための配列
         const intersectableObjects = [];
 
+        // つかんでいるキューブを管理するための変数
         let grabbedObject = null;
-        let grabbingController = null;
+        let grabbingController = null; // どのコントローラーでつかんだかを追跡
 
-        // モデルのオプション配列と現在の選択を管理する変数
-        let selectedModelIndex = 0;
-        let modelOptions;
-
+        let selectedModelIndex = 0; // 新規追加: 選択中のモデルのインデックス
+        let modelOptions; // 新規追加: モデルオプションを格納する配列
+        
         init();
         animate();
 
@@ -55,12 +56,14 @@
             renderer.xr.addEventListener('sessionstart', () => {
                 const controllerModelFactory = new XRControllerModelFactory();
 
+                // 右手コントローラーを取得 (インデックス 0)
                 controller1 = renderer.xr.getController(0);
                 scene.add(controller1);
                 const controllerGrip1 = renderer.xr.getControllerGrip(0);
                 controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
                 scene.add(controllerGrip1);
 
+                // レイキャストを可視化するための線
                 const lineGeometry = new THREE.BufferGeometry().setFromPoints([
                     new THREE.Vector3(0, 0, 0),
                     new THREE.Vector3(0, 0, -5)
@@ -69,6 +72,7 @@
                 const line1 = new THREE.Line(lineGeometry, lineMaterial);
                 controller1.add(line1);
 
+                // 左手コントローラーを取得 (インデックス 1)
                 controller2 = renderer.xr.getController(1);
                 scene.add(controller2);
                 const controllerGrip2 = renderer.xr.getControllerGrip(1);
@@ -77,18 +81,16 @@
                 const line2 = new THREE.Line(lineGeometry, lineMaterial);
                 controller2.add(line2);
 
+                // 両方のコントローラーにイベントリスナーを追加
                 controller1.addEventListener('selectstart', onSelectStart);
                 controller1.addEventListener('selectend', onSelectEnd);
                 controller2.addEventListener('selectstart', onSelectStart);
                 controller2.addEventListener('selectend', onSelectEnd);
-
-                // ARセッション開始時にボタンコンテナを表示
-                document.getElementById('model-buttons-container').style.display = 'block';
             });
 
-            renderer.xr.addEventListener('sessionend', () => {
-                // ARセッション終了時にボタンコンテナを非表示
-                document.getElementById('model-buttons-container').style.display = 'none';
+                // --- 新規追加: コントローラーボタンのイベントリスナー ---
+                controller1.addEventListener('bbuttondown', onNextModel); // 右手コントローラー
+                controller2.addEventListener('ybuttondown', onNextModel); // 左手コントローラー
             });
 
             reticle = new THREE.Mesh(
@@ -100,62 +102,21 @@
             scene.add(reticle);
 
             window.addEventListener('resize', onWindowResize);
+        }
 
-            // モデルのオプションを定義
+            // --- 新規追加: モデルのオプションを定義 ---
             modelOptions = [
-                {
-                    geometry: new THREE.BoxGeometry(0.3, 0.3, 0.3),
-                    material: new THREE.MeshNormalMaterial()
-                },
-                {
-                    geometry: new THREE.SphereGeometry(0.25, 32, 16),
-                    material: new THREE.MeshBasicMaterial({ color: 0xff0000 })
-                },
-                {
-                    geometry: new THREE.ConeGeometry(0.2, 0.4, 32),
-                    material: new THREE.MeshLambertMaterial({ color: 0x00ff00 })
-                },
-                {
-                    geometry: new THREE.TorusGeometry(0.2, 0.05, 16, 100),
-                    material: new THREE.MeshBasicMaterial({ color: 0x0000ff })
-                }
+                { geometry: new THREE.BoxGeometry(0.3, 0.3, 0.3), material: new THREE.MeshNormalMaterial() },
+                { geometry: new THREE.SphereGeometry(0.25, 32, 16), material: new THREE.MeshBasicMaterial({ color: 0xff0000 }) },
+                { geometry: new THREE.ConeGeometry(0.2, 0.4, 32), material: new THREE.MeshLambertMaterial({ color: 0x00ff00 }) },
+                { geometry: new THREE.TorusGeometry(0.2, 0.05, 16, 100), material: new THREE.MeshBasicMaterial({ color: 0x0000ff }) }
             ];
-
-            // ボタンを生成
-            createModelButtons();
         }
-
-        function createModelButtons() {
-            const container = document.getElementById('model-buttons-container');
-            modelOptions.forEach((option, index) => {
-                const button = document.createElement('button');
-                button.innerText = `モデル ${index + 1}`;
-                button.style.marginRight = '5px';
-                button.style.padding = '8px';
-                button.style.border = '1px solid #fff';
-                button.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-                button.style.color = 'white';
-                button.style.cursor = 'pointer';
-
-                button.onclick = () => {
-                    selectedModelIndex = index;
-                    console.log(`モデル ${index + 1} を選択しました。`);
-                    updateButtonStyles(index);
-                };
-                container.appendChild(button);
-            });
-            updateButtonStyles(selectedModelIndex);
-        }
-
-        function updateButtonStyles(selectedIndex) {
-            const buttons = document.querySelectorAll('#model-buttons-container button');
-            buttons.forEach((btn, index) => {
-                if (index === selectedIndex) {
-                    btn.style.borderColor = 'cyan';
-                } else {
-                    btn.style.borderColor = '#fff';
-                }
-            });
+        
+        // --- 新規追加: 次のモデルに切り替える関数 ---
+        function onNextModel() {
+            selectedModelIndex = (selectedModelIndex + 1) % modelOptions.length;
+            console.log(`次のモデルに切り替えました: ${selectedModelIndex}`);
         }
 
         function onSelectStart(event) {
@@ -167,26 +128,28 @@
             raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
             raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
+            // シーン内のキューブに対して交差判定
             const intersects = raycaster.intersectObjects(intersectableObjects);
 
             if (intersects.length > 0) {
                 const intersectedObject = intersects[0].object;
                 
+                // キューブを「つかんだ」状態にする
                 grabbedObject = intersectedObject;
                 grabbingController = controller;
                 
                 console.log('キューブをつかみました！');
 
             } else {
+                // 何にも当たらない場合、新しいキューブを生成
                 if (reticle.visible) {
-                    // 選択されたモデルを生成
                     const selectedModel = modelOptions[selectedModelIndex];
-                    
+            
                     const mesh = new THREE.Mesh(selectedModel.geometry, selectedModel.material);
                     
                     mesh.position.setFromMatrixPosition(reticle.matrix);
                     scene.add(mesh);
-                    intersectableObjects.push(mesh);
+                    intersectableObjects.push(mesh); // 配列に追加
                 }
             }
         }
@@ -239,13 +202,14 @@
                     }
                 }
 
+                // --- つかんでいるキューブの平面追従処理 ---
                 if (grabbedObject && reticle.visible) {
                     grabbedObject.position.setFromMatrixPosition(reticle.matrix);
                 }
+                // --- 追従処理 終わり ---
             }
             renderer.render(scene, camera);
         }
     </script>
-    <div id="model-buttons-container" style="position: absolute; bottom: 10px; left: 10px; display: none;"></div>
 </body>
 </html>

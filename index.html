@@ -1,192 +1,264 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>WebXR Both Controllers - Plane-following Move</title>
-    <style>
-        body { margin: 0; }
-        canvas { display: block; }
-    </style>
+    <meta charset="utf-8">
+    <title>WebXR Both Controllers - Plane-following Move</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+        /* 新しいボタンのスタイルを追加 */
+        #exit-ar-button {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #333;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 1000;
+        }
+    </style>
 </head>
 <body>
-    <script type="importmap">
-        {
-          "imports": {
-            "three": "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js",
-            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.155.0/examples/jsm/"
-          }
-        }
-    </script>
-    <script type="module">
-        import * as THREE from 'three';
-        import { ARButton } from 'three/addons/webxr/ARButton.js';
-        import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+    <script type="importmap">
+        {
+          "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.155.0/examples/jsm/"
+          }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { ARButton } from 'three/addons/webxr/ARButton.js';
+        import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
-        let camera, scene, renderer;
-        let controller1, controller2;
-        let reticle;
-        let hitTestSource = null;
-        let hitTestSourceRequested = false;
+        let camera, scene, renderer;
+        let controller1, controller2;
+        let reticle;
+        let hitTestSource = null;
+        let hitTestSourceRequested = false;
 
-        // キューブを管理するための配列
-        const intersectableObjects = [];
+        const intersectableObjects = [];
 
-        // つかんでいるキューブを管理するための変数
-        let grabbedObject = null;
-        let grabbingController = null; // どのコントローラーでつかんだかを追跡
+        let grabbedObject = null;
+        let grabbingController = null;
 
-        init();
-        animate();
+        let selectedModel = 'cube';
+        let uiObjects = [];
+        
+        // EXIT AR ボタンの参照をグローバルに取得
+        const exitButton = document.getElementById('exit-ar-button');
 
-        function init() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+        init();
+        animate();
 
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true;
-            document.body.appendChild(renderer.domElement);
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
-            document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local', 'hit-test'] }));
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
+            document.body.appendChild(renderer.domElement);
 
-            renderer.xr.addEventListener('sessionstart', () => {
-                const controllerModelFactory = new XRControllerModelFactory();
+            document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local', 'hit-test'] }));
 
-                // 右手コントローラーを取得 (インデックス 0)
-                controller1 = renderer.xr.getController(0);
-                scene.add(controller1);
-                const controllerGrip1 = renderer.xr.getControllerGrip(0);
-                controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
-                scene.add(controllerGrip1);
+            renderer.xr.addEventListener('sessionstart', () => {
+                const controllerModelFactory = new XRControllerModelFactory();
 
-                // レイキャストを可視化するための線
-                const lineGeometry = new THREE.BufferGeometry().setFromPoints([
-                    new THREE.Vector3(0, 0, 0),
-                    new THREE.Vector3(0, 0, -5)
-                ]);
-                const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
-                const line1 = new THREE.Line(lineGeometry, lineMaterial);
-                controller1.add(line1);
+                // 右手コントローラーを取得 (インデックス 0)
+                controller1 = renderer.xr.getController(0);
+                scene.add(controller1);
+                const controllerGrip1 = renderer.xr.getControllerGrip(0);
+                controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
+                scene.add(controllerGrip1);
 
-                // 左手コントローラーを取得 (インデックス 1)
-                controller2 = renderer.xr.getController(1);
-                scene.add(controller2);
-                const controllerGrip2 = renderer.xr.getControllerGrip(1);
-                controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
-                scene.add(controllerGrip2);
-                const line2 = new THREE.Line(lineGeometry, lineMaterial);
-                controller2.add(line2);
+                // レイキャストを可視化するための線
+                const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(0, 0, -5)
+                ]);
+                const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+                const line1 = new THREE.Line(lineGeometry, lineMaterial);
+                controller1.add(line1);
 
-                // 両方のコントローラーにイベントリスナーを追加
-                controller1.addEventListener('selectstart', onSelectStart);
-                controller1.addEventListener('selectend', onSelectEnd);
-                controller2.addEventListener('selectstart', onSelectStart);
-                controller2.addEventListener('selectend', onSelectEnd);
+                // 左手コントローラーを取得 (インデックス 1)
+                controller2 = renderer.xr.getController(1);
+                scene.add(controller2);
+                const controllerGrip2 = renderer.xr.getControllerGrip(1);
+                controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
+                scene.add(controllerGrip2);
+                const line2 = new THREE.Line(lineGeometry, lineMaterial);
+                controller2.add(line2);
+
+                // UIパネルの作成とコントローラーへのアタッチ
+                const uiPanel = new THREE.Mesh(
+                    new THREE.PlaneGeometry(0.3, 0.1),
+                    new THREE.MeshBasicMaterial({ color: 0xcccccc, transparent: true, opacity: 0.8 })
+                );
+                uiPanel.position.set(0, 0.05, -0.2);
+                uiPanel.rotation.x = Math.PI / 4;
+                controller2.add(uiPanel);
+
+                // 選択可能なモデルアイコンの作成
+                const cubeIcon = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.05, 0.05, 0.05),
+                    new THREE.MeshNormalMaterial()
+                );
+                cubeIcon.position.set(-0.1, 0, 0.01);
+                cubeIcon.userData.modelName = 'cube';
+                uiPanel.add(cubeIcon);
+                uiObjects.push(cubeIcon);
+
+                const sphereIcon = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.025, 16, 8),
+                    new THREE.MeshNormalMaterial()
+                );
+                sphereIcon.position.set(0.1, 0, 0.01);
+                sphereIcon.userData.modelName = 'sphere';
+                uiPanel.add(sphereIcon);
+                uiObjects.push(sphereIcon);
+
+                // 両方のコントローラーにイベントリスナーを追加
+                controller1.addEventListener('selectstart', onSelectStart);
+                controller1.addEventListener('selectend', onSelectEnd);
+                controller2.addEventListener('selectstart', onSelectStart);
+                controller2.addEventListener('selectend', onSelectEnd);
+
+                // セッション開始時に終了ボタンを表示
+                exitButton.style.display = 'block';
+            });
+            
+            // セッション終了時に終了ボタンを非表示
+            renderer.xr.addEventListener('sessionend', () => {
+                exitButton.style.display = 'none';
+            });
+            
+            // 終了ボタンがクリックされたらセッションを終了
+            exitButton.addEventListener('click', () => {
+                const session = renderer.xr.getSession();
+                if (session) {
+                    session.end();
+                }
             });
 
-            reticle = new THREE.Mesh(
-                new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
-                new THREE.MeshBasicMaterial({ color: 0xffffff })
-            );
-            reticle.matrixAutoUpdate = false;
-            reticle.visible = false;
-            scene.add(reticle);
+            reticle = new THREE.Mesh(
+                new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
+                new THREE.MeshBasicMaterial({ color: 0xffffff })
+            );
+            reticle.matrixAutoUpdate = false;
+            reticle.visible = false;
+            scene.add(reticle);
 
-            window.addEventListener('resize', onWindowResize);
-        }
+            window.addEventListener('resize', onWindowResize);
+        }
 
-        function onSelectStart(event) {
-            const controller = event.target;
-            const tempMatrix = new THREE.Matrix4();
-            tempMatrix.identity().extractRotation(controller.matrixWorld);
+        function onSelectStart(event) {
+            const controller = event.target;
+            const tempMatrix = new THREE.Matrix4();
+            tempMatrix.identity().extractRotation(controller.matrixWorld);
 
-            const raycaster = new THREE.Raycaster();
-            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+            const raycaster = new THREE.Raycaster();
+            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
-            // シーン内のキューブに対して交差判定
-            const intersects = raycaster.intersectObjects(intersectableObjects);
+            const uiIntersects = raycaster.intersectObjects(uiObjects);
 
-            if (intersects.length > 0) {
-                const intersectedObject = intersects[0].object;
-                
-                // キューブを「つかんだ」状態にする
-                grabbedObject = intersectedObject;
-                grabbingController = controller;
-                
-                console.log('キューブをつかみました！');
+            if (uiIntersects.length > 0) {
+                const icon = uiIntersects[0].object;
+                selectedModel = icon.userData.modelName;
+                console.log(`${selectedModel} を選択しました！`);
+                return;
+            }
 
-            } else {
-                // 何にも当たらない場合、新しいキューブを生成
-                if (reticle.visible) {
-                    const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-                    const material = new THREE.MeshNormalMaterial();
-                    const mesh = new THREE.Mesh(geometry, material);
-                    
-                    mesh.position.setFromMatrixPosition(reticle.matrix);
-                    scene.add(mesh);
-                    intersectableObjects.push(mesh); // 配列に追加
-                }
-            }
-        }
+            const cubeIntersects = raycaster.intersectObjects(intersectableObjects);
 
-        function onSelectEnd() {
-            if (grabbedObject) {
-                grabbedObject = null;
-                grabbingController = null;
-                console.log('キューブを離しました！');
-            }
-        }
+            if (cubeIntersects.length > 0) {
+                const intersectedObject = cubeIntersects[0].object;
+                grabbedObject = intersectedObject;
+                grabbingController = controller;
+                console.log('キューブをつかみました！');
+            } else {
+                if (reticle.visible) {
+                    let geometry, material;
+                    if (selectedModel === 'cube') {
+                        geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+                        material = new THREE.MeshNormalMaterial();
+                    } else if (selectedModel === 'sphere') {
+                        geometry = new THREE.SphereGeometry(0.2, 32, 16);
+                        material = new THREE.MeshNormalMaterial();
+                    }
+                    
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.position.setFromMatrixPosition(reticle.matrix);
+                    scene.add(mesh);
+                    intersectableObjects.push(mesh);
+                    console.log(`${selectedModel} を配置しました！`);
+                }
+            }
+        }
 
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
+        function onSelectEnd() {
+            if (grabbedObject) {
+                grabbedObject = null;
+                grabbingController = null;
+                console.log('キューブを離しました！');
+            }
+        }
 
-        function animate() {
-            renderer.setAnimationLoop(render);
-        }
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
 
-        function render(time, frame) {
-            if (frame) {
-                const session = renderer.xr.getSession();
+        function animate() {
+            renderer.setAnimationLoop(render);
+        }
 
-                if (!hitTestSourceRequested) {
-                    session.requestReferenceSpace('viewer').then(function (referenceSpace) {
-                        session.requestHitTestSource({ space: referenceSpace }).then(function (source) {
-                            hitTestSource = source;
-                        });
-                    });
-                    session.addEventListener('end', function () {
-                        hitTestSourceRequested = false;
-                        hitTestSource = null;
-                    });
-                    hitTestSourceRequested = true;
-                }
+        function render(time, frame) {
+            if (frame) {
+                const session = renderer.xr.getSession();
 
-                if (hitTestSource) {
-                    const hitTestResults = frame.getHitTestResults(hitTestSource);
+                if (!hitTestSourceRequested) {
+                    session.requestReferenceSpace('viewer').then(function (referenceSpace) {
+                        session.requestHitTestSource({ space: referenceSpace }).then(function (source) {
+                            hitTestSource = source;
+                        });
+                    });
+                    session.addEventListener('end', function () {
+                        hitTestSourceRequested = false;
+                        hitTestSource = null;
+                    });
+                    hitTestSourceRequested = true;
+                }
 
-                    if (hitTestResults.length > 0) {
-                        const hit = hitTestResults[0];
-                        const referenceSpace = renderer.xr.getReferenceSpace();
-                        reticle.visible = true;
-                        reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
-                    } else {
-                        reticle.visible = false;
-                    }
-                }
+                if (hitTestSource) {
+                    const hitTestResults = frame.getHitTestResults(hitTestSource);
 
-                // --- つかんでいるキューブの平面追従処理 ---
-                if (grabbedObject && reticle.visible) {
-                    grabbedObject.position.setFromMatrixPosition(reticle.matrix);
-                }
-                // --- 追従処理 終わり ---
-            }
-            renderer.render(scene, camera);
-        }
-    </script>
+                    if (hitTestResults.length > 0) {
+                        const hit = hitTestResults[0];
+                        const referenceSpace = renderer.xr.getReferenceSpace();
+                        reticle.visible = true;
+                        reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
+                    } else {
+                        reticle.visible = false;
+                    }
+                }
+
+                if (grabbedObject && reticle.visible) {
+                    grabbedObject.position.setFromMatrixPosition(reticle.matrix);
+                }
+            }
+            renderer.render(scene, camera);
+        }
+    </script>
+    <button id="exit-ar-button">EXIT AR</button>
 </body>
 </html>

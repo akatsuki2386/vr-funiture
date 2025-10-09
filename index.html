@@ -6,9 +6,36 @@
     <style>
         body { margin: 0; }
         canvas { display: block; }
+        #ui-container {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            display: flex;
+            gap: 10px;
+        }
+        .model-button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: 1px solid #fff;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            border-radius: 5px;
+        }
+        .model-button.active {
+            background-color: #007bff;
+        }
     </style>
 </head>
 <body>
+    <div id="ui-container">
+        <button id="cube-btn" class="model-button active">Cube</button>
+        <button id="sphere-btn" class="model-button">Sphere</button>
+        <button id="cone-btn" class="model-button">Cone</button>
+    </div>
+
     <script type="importmap">
         {
           "imports": {
@@ -35,9 +62,10 @@
         let grabbedObject = null;
         let grabbingController = null; // どのコントローラーでつかんだかを追跡
 
-        // 選択中のモデルを管理する変数
-        let selectedModel = 'cube'; // 初期値は 'cube'
-        let uiObjects = []; // UIアイコンを管理するための配列
+        // --- 追加: モデルの種類と現在の選択モデルを管理する変数 ---
+        const models = {};
+        let selectedModel = 'cube';
+        // --- 追加部分 終わり ---
 
         init();
         animate();
@@ -82,34 +110,6 @@
                 const line2 = new THREE.Line(lineGeometry, lineMaterial);
                 controller2.add(line2);
 
-                // UIパネルの作成とコントローラーへのアタッチ
-                const uiPanel = new THREE.Mesh(
-                    new THREE.PlaneGeometry(0.3, 0.1),
-                    new THREE.MeshBasicMaterial({ color: 0xcccccc, transparent: true, opacity: 0.8 })
-                );
-                uiPanel.position.set(0, 0.05, -0.2);
-                uiPanel.rotation.x = Math.PI / 4; // 少し傾けて見やすくする
-                controller2.add(uiPanel);
-
-                // 選択可能なモデルアイコンの作成
-                const cubeIcon = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.05, 0.05, 0.05),
-                    new THREE.MeshNormalMaterial()
-                );
-                cubeIcon.position.set(-0.1, 0, 0.01);
-                cubeIcon.userData.modelName = 'cube';
-                uiPanel.add(cubeIcon);
-                uiObjects.push(cubeIcon);
-
-                const sphereIcon = new THREE.Mesh(
-                    new THREE.SphereGeometry(0.025, 16, 8),
-                    new THREE.MeshNormalMaterial()
-                );
-                sphereIcon.position.set(0.1, 0, 0.01);
-                sphereIcon.userData.modelName = 'sphere';
-                uiPanel.add(sphereIcon);
-                uiObjects.push(sphereIcon);
-
                 // 両方のコントローラーにイベントリスナーを追加
                 controller1.addEventListener('selectstart', onSelectStart);
                 controller1.addEventListener('selectend', onSelectEnd);
@@ -126,7 +126,48 @@
             scene.add(reticle);
 
             window.addEventListener('resize', onWindowResize);
+            // --- 追加: モデルの事前生成 ---
+            createModels();
+            // --- 追加部分 終わり ---
+            // --- 追加: UIボタンのイベントリスナー ---
+            setupUIButtons();
+            // --- 追加部分 終わり ---
         }
+
+        // --- 追加: モデルの生成関数 ---
+        function createModels() {
+            // 立方体
+            const cubeGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+            const cubeMaterial = new THREE.MeshNormalMaterial();
+            models.cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+
+            // 球体
+            const sphereGeometry = new THREE.SphereGeometry(0.2, 32, 16);
+            const sphereMaterial = new THREE.MeshNormalMaterial();
+            models.sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+
+            // 円錐体
+            const coneGeometry = new THREE.ConeGeometry(0.2, 0.5, 32);
+            const coneMaterial = new THREE.MeshNormalMaterial();
+            models.cone = new THREE.Mesh(coneGeometry, coneMaterial);
+        }
+        // --- 追加部分 終わり ---
+
+        // --- 追加: UI設定関数 ---
+        function setupUIButtons() {
+            const buttons = document.querySelectorAll('.model-button');
+            buttons.forEach(button => {
+                button.addEventListener('click', () => {
+                    // すべてのボタンのアクティブ状態を解除
+                    buttons.forEach(btn => btn.classList.remove('active'));
+                    // クリックされたボタンをアクティブにする
+                    button.classList.add('active');
+                    // 選択されたモデルを更新
+                    selectedModel = button.id.replace('-btn', '');
+                });
+            });
+        }
+        // --- 追加部分 終わり ---
 
         function onSelectStart(event) {
             const controller = event.target;
@@ -137,45 +178,25 @@
             raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
             raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
-            // UIパネル上のアイコンとの交差判定を優先して行う
-            const uiIntersects = raycaster.intersectObjects(uiObjects);
+            // シーン内のキューブに対して交差判定
+            const intersects = raycaster.intersectObjects(intersectableObjects);
 
-            if (uiIntersects.length > 0) {
-                const icon = uiIntersects[0].object;
-                selectedModel = icon.userData.modelName;
-                console.log(`${selectedModel} を選択しました！`);
-                return; // UIを操作した場合は、これ以上処理しない
-            }
-
-            // シーン内の既存のオブジェクトに対して交差判定
-            const cubeIntersects = raycaster.intersectObjects(intersectableObjects);
-
-            if (cubeIntersects.length > 0) {
-                const intersectedObject = cubeIntersects[0].object;
-                
+            if (intersects.length > 0) {
+                const intersectedObject = intersects[0].object;
+                
                 // キューブを「つかんだ」状態にする
                 grabbedObject = intersectedObject;
                 grabbingController = controller;
-                
-                console.log('キューブをつかみました！');
+                
+                console.log('オブジェクトをつかみました！');
 
             } else {
                 // 何にも当たらない場合、新しいモデルを生成
-                if (reticle.visible) {
-                    let geometry, material;
-                    if (selectedModel === 'cube') {
-                        geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-                        material = new THREE.MeshNormalMaterial();
-                    } else if (selectedModel === 'sphere') {
-                        geometry = new THREE.SphereGeometry(0.2, 32, 16);
-                        material = new THREE.MeshNormalMaterial();
-                    }
-                    
-                    const mesh = new THREE.Mesh(geometry, material);
-                    
-                    mesh.position.setFromMatrixPosition(reticle.matrix);
-                    scene.add(mesh);
-                    intersectableObjects.push(mesh); // 配列に追加
+                if (reticle.visible && models[selectedModel]) {
+                    const newMesh = models[selectedModel].clone(); // 選択されたモデルを複製
+                    newMesh.position.setFromMatrixPosition(reticle.matrix);
+                    scene.add(newMesh);
+                    intersectableObjects.push(newMesh); // 配列に追加
                     console.log(`${selectedModel} を配置しました！`);
                 }
             }
@@ -185,7 +206,7 @@
             if (grabbedObject) {
                 grabbedObject = null;
                 grabbingController = null;
-                console.log('キューブを離しました！');
+                console.log('オブジェクトを離しました！');
             }
         }
 
@@ -229,7 +250,7 @@
                     }
                 }
 
-                // --- つかんでいるキューブの平面追従処理 ---
+                // --- つかんでいるオブジェクトの平面追従処理 ---
                 if (grabbedObject && reticle.visible) {
                     grabbedObject.position.setFromMatrixPosition(reticle.matrix);
                 }

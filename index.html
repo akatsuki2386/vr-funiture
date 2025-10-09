@@ -36,7 +36,7 @@
         let selectedModelIndex = 0;
         let modelOptions;
 
-        let previewMesh = null; // 新規追加: プレビュー用のメッシュ
+        let previewMesh = null;
         
         init();
         animate();
@@ -83,8 +83,8 @@
                 controller2.addEventListener('selectstart', onSelectStart);
                 controller2.addEventListener('selectend', onSelectEnd);
 
-                controller1.addEventListener('bbuttondown', onNextModel); // 右手コントローラー
-                controller2.addEventListener('ybuttondown', onNextModel); // 左手コントローラー
+                controller1.addEventListener('bbuttondown', onNextModel);
+                controller2.addEventListener('ybuttondown', onNextModel);
             });
 
             reticle = new THREE.Mesh(
@@ -97,7 +97,6 @@
 
             window.addEventListener('resize', onWindowResize);
             
-            // init()関数の最後に配置
             modelOptions = [
                 {
                     geometry: new THREE.BoxGeometry(0.3, 0.3, 0.3),
@@ -120,19 +119,24 @@
                     previewMaterial: new THREE.MeshBasicMaterial({ color: 0x0000ff, transparent: true, opacity: 0.5 })
                 }
             ];
+
+            // 最初のモデルのプレビューを生成
+            const selected = modelOptions[selectedModelIndex];
+            previewMesh = new THREE.Mesh(selected.geometry, selected.previewMaterial);
+            previewMesh.visible = false;
+            scene.add(previewMesh);
         }
         
         function onNextModel() {
-            // 選択インデックスを更新
             selectedModelIndex = (selectedModelIndex + 1) % modelOptions.length;
-            console.log(`次のモデルに切り替えました: ${selectedIndex}`);
-        
-            // プレビューメッシュを更新
+            console.log(`次のモデルに切り替えました: ${selectedModelIndex}`);
+            
             if (previewMesh) {
                 scene.remove(previewMesh);
             }
             const selected = modelOptions[selectedModelIndex];
             previewMesh = new THREE.Mesh(selected.geometry, selected.previewMaterial);
+            previewMesh.visible = false;
             scene.add(previewMesh);
         }
 
@@ -157,13 +161,11 @@
 
             } else {
                 if (reticle.visible) {
-                    // --- 新規追加: プレビューメッシュを削除 ---
                     if (previewMesh) {
                         scene.remove(previewMesh);
                         previewMesh = null;
                     }
                     
-                    // 不透明なモデルを配置
                     const selectedModel = modelOptions[selectedModelIndex];
                     
                     const mesh = new THREE.Mesh(selectedModel.geometry, selectedModel.material);
@@ -218,14 +220,16 @@
                         const referenceSpace = renderer.xr.getReferenceSpace();
                         reticle.visible = true;
                         reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
-
-                        // --- 新規追加: プレビューメッシュをレティクルに追従させる ---
+                        
                         if (previewMesh) {
                             previewMesh.position.setFromMatrixPosition(reticle.matrix);
                             previewMesh.visible = true;
                         }
                     } else {
                         reticle.visible = false;
+                        if (previewMesh) {
+                            previewMesh.visible = false;
+                        }
                     }
                 }
 
@@ -238,4 +242,3 @@
     </script>
 </body>
 </html>
-

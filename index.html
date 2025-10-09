@@ -134,11 +134,11 @@
             if (previewMesh) {
                 scene.remove(previewMesh);
             }
-            const selected = modelOptions[selectedModelIndex];
-            previewMesh = new THREE.Mesh(selected.geometry, selected.previewMaterial);
-            previewMesh.visible = false;
-            scene.add(previewMesh);
-        }
+            // 新しいプレビューメッシュを作成し、シーンに追加
+            const selected = modelOptions[selectedModelIndex];
+            previewMesh = new THREE.Mesh(selected.geometry, selected.previewMaterial);
+            scene.add(previewMesh);
+        }
 
         function onSelectStart(event) {
             const controller = event.target;
@@ -163,23 +163,15 @@
                 if (reticle.visible) {
                     if (previewMesh) {
                         scene.remove(previewMesh);
-                        previewMesh = null;
                     }
                     
                     const selectedModel = modelOptions[selectedModelIndex];
-                    
                     const mesh = new THREE.Mesh(selectedModel.geometry, selectedModel.material);
-                    
                     mesh.position.setFromMatrixPosition(reticle.matrix);
                     scene.add(mesh);
                     intersectableObjects.push(mesh);
-
-                    // 新しいモデルのプレビューをすぐに作成
-                    selectedModelIndex = (selectedModelIndex + 1) % modelOptions.length;
-                    const nextSelected = modelOptions[selectedModelIndex];
-                    previewMesh = new THREE.Mesh(nextSelected.geometry, nextSelected.previewMaterial);
-                    previewMesh.visible = false;
-                    scene.add(previewMesh);
+            　　　　// 配置後、次のモデルのプレビューを準備
+            　　　　onNextModel();
                 }
             }
         }
@@ -249,3 +241,4 @@
     </script>
 </body>
 </html>
+

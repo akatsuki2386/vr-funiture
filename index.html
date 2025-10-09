@@ -35,6 +35,8 @@
         
         let selectedModelIndex = 0;
         let modelOptions;
+
+        let previewMesh = null; // 新規追加: プレビュー用のメッシュ
         
         init();
         animate();
@@ -95,17 +97,43 @@
 
             window.addEventListener('resize', onWindowResize);
             
+            // init()関数の最後に配置
             modelOptions = [
-                { geometry: new THREE.BoxGeometry(0.3, 0.3, 0.3), material: new THREE.MeshNormalMaterial() },
-                { geometry: new THREE.SphereGeometry(0.25, 32, 16), material: new THREE.MeshBasicMaterial({ color: 0xff0000 }) },
-                { geometry: new THREE.ConeGeometry(0.2, 0.4, 32), material: new THREE.MeshLambertMaterial({ color: 0x00ff00 }) },
-                { geometry: new THREE.TorusGeometry(0.2, 0.05, 16, 100), material: new THREE.MeshBasicMaterial({ color: 0x0000ff }) }
+                {
+                    geometry: new THREE.BoxGeometry(0.3, 0.3, 0.3),
+                    material: new THREE.MeshNormalMaterial(),
+                    previewMaterial: new THREE.MeshNormalMaterial({ transparent: true, opacity: 0.5 })
+                },
+                {
+                    geometry: new THREE.SphereGeometry(0.25, 32, 16),
+                    material: new THREE.MeshBasicMaterial({ color: 0xff0000 }),
+                    previewMaterial: new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.5 })
+                },
+                {
+                    geometry: new THREE.ConeGeometry(0.2, 0.4, 32),
+                    material: new THREE.MeshLambertMaterial({ color: 0x00ff00 }),
+                    previewMaterial: new THREE.MeshLambertMaterial({ color: 0x00ff00, transparent: true, opacity: 0.5 })
+                },
+                {
+                    geometry: new THREE.TorusGeometry(0.2, 0.05, 16, 100),
+                    material: new THREE.MeshBasicMaterial({ color: 0x0000ff }),
+                    previewMaterial: new THREE.MeshBasicMaterial({ color: 0x0000ff, transparent: true, opacity: 0.5 })
+                }
             ];
         }
         
         function onNextModel() {
+            // 選択インデックスを更新
             selectedModelIndex = (selectedModelIndex + 1) % modelOptions.length;
-            console.log(`次のモデルに切り替えました: ${selectedModelIndex}`);
+            console.log(`次のモデルに切り替えました: ${selectedIndex}`);
+        
+            // プレビューメッシュを更新
+            if (previewMesh) {
+                scene.remove(previewMesh);
+            }
+            const selected = modelOptions[selectedModelIndex];
+            previewMesh = new THREE.Mesh(selected.geometry, selected.previewMaterial);
+            scene.add(previewMesh);
         }
 
         function onSelectStart(event) {
@@ -129,6 +157,13 @@
 
             } else {
                 if (reticle.visible) {
+                    // --- 新規追加: プレビューメッシュを削除 ---
+                    if (previewMesh) {
+                        scene.remove(previewMesh);
+                        previewMesh = null;
+                    }
+                    
+                    // 不透明なモデルを配置
                     const selectedModel = modelOptions[selectedModelIndex];
                     
                     const mesh = new THREE.Mesh(selectedModel.geometry, selectedModel.material);
@@ -183,6 +218,12 @@
                         const referenceSpace = renderer.xr.getReferenceSpace();
                         reticle.visible = true;
                         reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
+
+                        // --- 新規追加: プレビューメッシュをレティクルに追従させる ---
+                        if (previewMesh) {
+                            previewMesh.position.setFromMatrixPosition(reticle.matrix);
+                            previewMesh.visible = true;
+                        }
                     } else {
                         reticle.visible = false;
                     }
@@ -197,3 +238,4 @@
     </script>
 </body>
 </html>
+

@@ -6,20 +6,59 @@
     <style>
         body { margin: 0; background-color: navy; color: white; text-align: center; font-family: sans-serif; }
         canvas { display: block; }
-        /* AR開始ボタンの上にタイトルが表示されるようにする */
         #title {
             position: absolute;
             top: 20px;
             width: 100%;
-            z-index: 1; /* ARButtonより手前に来るように */
+            z-index: 1;
             margin: 0;
             padding: 0;
             font-size: 24px;
+        }
+        /* モデル選択UIのスタイル */
+        #model-selector {
+            position: absolute;
+            top: 60px; /* タイトルの下に配置 */
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1;
+            display: flex;
+            gap: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 5px;
+        }
+        #model-selector button {
+            padding: 8px 15px;
+            font-size: 16px;
+            cursor: pointer;
+            border: 2px solid white;
+            background-color: transparent;
+            color: white;
+            border-radius: 5px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        #model-selector button:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        /* 選択中のボタンのスタイル */
+        #model-selector button.selected {
+            background-color: white;
+            color: navy;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
     <h1 id="title">ARモデル配置シミュレーション</h1>
+
+    <div id="model-selector">
+        <button id="select-box" data-index="0">立方体</button>
+        <button id="select-sphere" data-index="1">球</button>
+        <button id="select-cone" data-index="2">円錐</button>
+        <button id="select-torus" data-index="3">トーラス</button>
+    </div>
+
     <script type="importmap">
         {
             "imports": {
@@ -49,6 +88,39 @@
 
         let previewMesh = null;
         
+        // initとanimateの呼び出しはそのまま
+
+        // --- 変更点 (1): モデル選択関数を引数付きに変更 ---
+        function selectModel(index) {
+            if (index === selectedModelIndex) return; // 既に選択済みなら何もしない
+
+            selectedModelIndex = index;
+            console.log(`モデルを切り替えました: ${index}`);
+            
+            // プレビューメッシュを更新
+            if (previewMesh) {
+                scene.remove(previewMesh);
+            }
+            const selected = modelOptions[selectedModelIndex];
+            previewMesh = new THREE.Mesh(selected.geometry, selected.previewMaterial);
+            scene.add(previewMesh);
+
+            // UIボタンの選択状態を更新
+            updateSelectionUI();
+        }
+
+        function updateSelectionUI() {
+             document.querySelectorAll('#model-selector button').forEach(button => {
+                const index = parseInt(button.getAttribute('data-index'));
+                if (index === selectedModelIndex) {
+                    button.classList.add('selected');
+                } else {
+                    button.classList.remove('selected');
+                }
+            });
+        }
+        // ---------------------------------------------------
+
         init();
         animate();
 
@@ -64,9 +136,10 @@
 
             document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local', 'hit-test'] }));
             
-            // ARセッション開始時にタイトルを非表示にする
+            // ARセッション開始時にタイトルとセレクターを非表示にする
             renderer.xr.addEventListener('sessionstart', () => {
                 document.getElementById('title').style.display = 'none';
+                document.getElementById('model-selector').style.display = 'none'; // 追加
                 
                 const controllerModelFactory = new XRControllerModelFactory();
 
@@ -96,14 +169,17 @@
                 controller1.addEventListener('selectend', onSelectEnd);
                 controller2.addEventListener('selectstart', onSelectStart);
                 controller2.addEventListener('selectend', onSelectEnd);
-
-                controller1.addEventListener('bbuttondown', onNextModel);
-                controller2.addEventListener('ybuttondown', onNextModel);
+                
+                // --- 変更点 (2): コントローラーボタンによる切り替えを削除 ---
+                // controller1.addEventListener('bbuttondown', onNextModel); // 削除
+                // controller2.addEventListener('ybuttondown', onNextModel); // 削除
+                // ----------------------------------------------------------
             });
             
-            // ARセッション終了時にタイトルを再表示する
+            // ARセッション終了時にタイトルとセレクターを再表示する
             renderer.xr.addEventListener('sessionend', () => {
                 document.getElementById('title').style.display = 'block';
+                document.getElementById('model-selector').style.display = 'flex'; // 追加
             });
 
             reticle = new THREE.Mesh(
@@ -118,42 +194,48 @@
             
             modelOptions = [
                 {
+                    name: 'Box',
                     geometry: new THREE.BoxGeometry(0.3, 0.3, 0.3),
                     material: new THREE.MeshNormalMaterial(),
                     previewMaterial: new THREE.MeshNormalMaterial({ transparent: true, opacity: 0.5 })
                 },
                 {
+                    name: 'Sphere',
                     geometry: new THREE.SphereGeometry(0.25, 32, 16),
                     material: new THREE.MeshBasicMaterial({ color: 0xff0000 }),
                     previewMaterial: new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.5 })
                 },
                 {
+                    name: 'Cone',
                     geometry: new THREE.ConeGeometry(0.2, 0.4, 32),
                     material: new THREE.MeshLambertMaterial({ color: 0x00ff00 }),
                     previewMaterial: new THREE.MeshLambertMaterial({ color: 0x00ff00, transparent: true, opacity: 0.5 })
                 },
                 {
+                    name: 'Torus',
                     geometry: new THREE.TorusGeometry(0.2, 0.05, 16, 100),
                     material: new THREE.MeshBasicMaterial({ color: 0x0000ff }),
                     previewMaterial: new THREE.MeshBasicMaterial({ color: 0x0000ff, transparent: true, opacity: 0.5 })
                 }
             ];
+            
+            // --- 変更点 (3): UIボタンにイベントリスナーを追加 ---
+            document.querySelectorAll('#model-selector button').forEach(button => {
+                button.addEventListener('click', () => {
+                    const index = parseInt(button.getAttribute('data-index'));
+                    selectModel(index);
+                });
+            });
 
-            // 最初のモデルのプレビューを生成
-            onNextModel();
+            // 最初のモデルの選択とUIの初期化
+            selectModel(0); 
+            // ----------------------------------------------------------
         }
         
-        function onNextModel() {
-            selectedModelIndex = (selectedModelIndex + 1) % modelOptions.length;
-            console.log(`次のモデルに切り替えました: ${selectedModelIndex}`);
-            
-            if (previewMesh) {
-                scene.remove(previewMesh);
-            }
-            const selected = modelOptions[selectedModelIndex];
-            previewMesh = new THREE.Mesh(selected.geometry, selected.previewMaterial);
-            scene.add(previewMesh);
-        }
+        // --- 変更点 (4): 古い onNextModel 関数を削除または更新 (ここではselectModelに一本化) ---
+        // onNextModelをselectModel(index)に置き換えたため、この関数は削除します。
+        // onNextModelは使用しなくなりました。
+        // ---------------------------------------------------------------------------------
 
         function onSelectStart(event) {
             const controller = event.target;
@@ -189,8 +271,12 @@
                     scene.add(mesh);
                     intersectableObjects.push(mesh);
                     
-                    // 次のモデルのプレビューを準備
-                    onNextModel();
+                    // --- 変更点 (5): 配置後のモデル切り替えロジックを削除 ---
+                    // onNextModel(); // 削除: 配置後に次のモデルに自動で切り替えるのをやめる
+                    // -------------------------------------------------------
+                    
+                    // 配置後、同じモデルが選択された状態を維持し、プレビューメッシュを再生成
+                    selectModel(selectedModelIndex);
                 }
             }
         }

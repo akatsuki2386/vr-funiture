@@ -126,6 +126,11 @@
         
         // モデル選択関数
         function selectModel(index) {
+            // ARセッション中ではない場合はプレビューメッシュを生成しない
+            // if (!renderer.xr.isPresenting) { // このチェックは不要。プレビューはreticle.visibleで制御されるべき
+            //     return; 
+            // }
+
             if (index === selectedModelIndex && previewMesh) return;
 
             selectedModelIndex = index;
@@ -167,19 +172,18 @@
                 function (gltf) {
                     const loadedModel = gltf.scene;
                     
-                    // --- 変更点: 高さを0.79mに調整 ---
+                    // モデルの現在の高さを取得し、目標の高さに合わせてスケーリング
                     const box = new THREE.Box3().setFromObject(loadedModel);
                     const size = box.getSize(new THREE.Vector3());
                     
                     // モデルの現在の高さ (Y軸のサイズ)
                     const currentHeight = size.y; 
                     
-                    // 目標とする高さに基づいたスケーリング係数を計算
+                    // 目標とする高さに基づいたスケーリング係数を計算 (0.79 / currentHeight)
                     const scale = TARGET_HEIGHT / currentHeight; 
                     
                     // スケールを適用
                     loadedModel.scale.set(scale, scale, scale);
-                    // ------------------------------------
                     
                     // キャッシュに保存
                     modelCache[index] = loadedModel;
@@ -214,6 +218,11 @@
 
         // プレビューメッシュを設定する関数
         function setupPreviewMesh(modelObject) {
+            // ARセッション中でなければプレビューは作成しない
+            if (!renderer.xr.isPresenting) {
+                return;
+            }
+
             // 既にプレビューメッシュが存在する場合は削除（selectModelから呼ばれた場合）
             if (previewMesh) {
                 scene.remove(previewMesh);
@@ -240,6 +249,10 @@
 
             // ARシーンに追加
             scene.add(previewMesh);
+            // reticleがまだ非表示の場合、previewMeshも非表示にしておく
+            if (!reticle.visible && previewMesh) {
+                previewMesh.visible = false;
+            }
         }
 
         // UIボタンの選択状態を更新する関数
@@ -316,6 +329,14 @@
                 controller1.addEventListener('selectend', onSelectEnd);
                 controller2.addEventListener('selectstart', onSelectStart);
                 controller2.addEventListener('selectend', onSelectEnd);
+
+                // ARセッション開始時に改めてプレビューモデルを生成/表示
+                if (modelCache[selectedModelIndex]) {
+                    setupPreviewMesh(modelCache[selectedModelIndex].clone());
+                } else {
+                    // キャッシュになければロードから
+                    loadAndSetModel(selectedModelIndex);
+                }
             });
             
             // ARセッション終了時
@@ -326,6 +347,13 @@
                 
                 // AR中のセレクターを非表示
                 document.getElementById('model-selector').style.display = 'none';
+
+                // ARセッション終了時にプレビューメッシュがあれば削除
+                if (previewMesh) {
+                    scene.remove(previewMesh);
+                    previewMesh = null;
+                }
+                currentModelObject = null;
             });
 
             reticle = new THREE.Mesh(
@@ -357,8 +385,12 @@
                 });
             });
 
-            // 最初のモデルの選択とロードを開始
-            selectModel(0); 
+            // AR開始前のレンダリングではプレビューモデルは表示しない
+            // したがって、init()の最後にselectModel(0)を呼び出す必要はない
+            // ARセッション開始時にプレビューモデルを生成するように変更
+            
+            // 初期選択状態のUIを更新
+            updateSelectionUI(); 
         }
         
         function onSelectStart(event) {
@@ -412,7 +444,10 @@
                     console.log(`モデルを配置しました: ${modelOptions[selectedModelIndex].name}`);
 
                     // 5. 配置後、同じモデルを再選択し、次のプレビューメッシュの生成を非同期的に開始
-                    selectModel(selectedModelIndex);
+                    //    ただし、ARセッション中でなければプレビューは表示されない
+                    if (renderer.xr.isPresenting) {
+                        selectModel(selectedModelIndex);
+                    }
                 }
             }
         }
@@ -461,13 +496,15 @@
                         reticle.visible = true;
                         reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
                         
+                        // プレビューメッシュが存在し、現在表示されているモデルであれば位置を更新
                         if (previewMesh) {
-                            // プレビューメッシュをレティクルの位置に移動
                             previewMesh.position.setFromMatrixPosition(reticle.matrix);
-                            previewMesh.visible = true;
+                            // reticleがvisibleになったらpreviewMeshもvisibleにする
+                            if (!previewMesh.visible) previewMesh.visible = true;
                         }
                     } else {
                         reticle.visible = false;
+                        // reticleが非表示になったらpreviewMeshも非表示にする
                         if (previewMesh) {
                             previewMesh.visible = false;
                         }
@@ -484,4 +521,3 @@
     </script>
 </body>
 </html>
-

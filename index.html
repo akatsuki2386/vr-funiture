@@ -126,11 +126,9 @@
         
         // モデル選択関数
         function selectModel(index) {
-            // ARセッション中ではない場合はプレビューメッシュを生成しない
-            // if (!renderer.xr.isPresenting) { // このチェックは不要。プレビューはreticle.visibleで制御されるべき
-            //     return; 
-            // }
-
+            // ARセッション中でない場合、既にプレビューがあるなら処理をスキップ
+            if (!renderer.xr.isPresenting && previewMesh) return;
+            
             if (index === selectedModelIndex && previewMesh) return;
 
             selectedModelIndex = index;
@@ -146,7 +144,11 @@
 
             // UIボタンの選択状態を更新し、ロードを開始
             updateSelectionUI();
-            loadAndSetModel(index);
+            
+            // ARセッション中の場合のみ、ロードとプレビュー生成を行う
+            if (renderer.xr.isPresenting) {
+                loadAndSetModel(index);
+            }
         }
 
         // GLBモデルを読み込み、キャッシュし、プレビューを設定する関数
@@ -195,7 +197,7 @@
                     });
                     
                     // 現在選択中のモデルであればプレビューを設定
-                    if (selectedModelIndex === index) {
+                    if (selectedModelIndex === index && renderer.xr.isPresenting) {
                         const modelInstance = loadedModel.clone();
                         setupPreviewMesh(modelInstance);
                     }
@@ -339,7 +341,7 @@
                 }
             });
             
-            // ARセッション終了時
+            // ARセッション終了時 (STOP ARが押されたとき)
             renderer.xr.addEventListener('sessionend', () => {
                 // 初めの画面の要素を再表示
                 document.getElementById('title').style.display = 'block';
@@ -348,12 +350,26 @@
                 // AR中のセレクターを非表示
                 document.getElementById('model-selector').style.display = 'none';
 
-                // ARセッション終了時にプレビューメッシュがあれば削除
+                // --- 修正点: シーンをクリアしてまっさらな状態にする ---
+                
+                // 1. レティクルを非表示にする
+                reticle.visible = false;
+                
+                // 2. プレビューメッシュがあれば削除
                 if (previewMesh) {
                     scene.remove(previewMesh);
                     previewMesh = null;
                 }
                 currentModelObject = null;
+                
+                // 3. 配置済みのすべてのモデルをシーンから削除
+                intersectableObjects.forEach(obj => {
+                    scene.remove(obj);
+                });
+                // 4. 配列を空にする
+                intersectableObjects.length = 0; 
+
+                // ----------------------------------------------------
             });
 
             reticle = new THREE.Mesh(
@@ -385,10 +401,6 @@
                 });
             });
 
-            // AR開始前のレンダリングではプレビューモデルは表示しない
-            // したがって、init()の最後にselectModel(0)を呼び出す必要はない
-            // ARセッション開始時にプレビューモデルを生成するように変更
-            
             // 初期選択状態のUIを更新
             updateSelectionUI(); 
         }
@@ -444,7 +456,6 @@
                     console.log(`モデルを配置しました: ${modelOptions[selectedModelIndex].name}`);
 
                     // 5. 配置後、同じモデルを再選択し、次のプレビューメッシュの生成を非同期的に開始
-                    //    ただし、ARセッション中でなければプレビューは表示されない
                     if (renderer.xr.isPresenting) {
                         selectModel(selectedModelIndex);
                     }

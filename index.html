@@ -6,17 +6,38 @@
     <style>
         body { margin: 0; background-color: navy; color: white; text-align: center; font-family: sans-serif; }
         canvas { display: block; }
+
+        /* ARセッション開始前のタイトル */
         #title {
             position: absolute;
             top: 20px;
             width: 100%;
-            z-index: 1;
+            z-index: 1; 
             margin: 0;
             padding: 0;
             font-size: 24px;
         }
+
         /* モデル選択UIのスタイル */
         #model-selector {
+            position: absolute;
+            /* ARボタンの高さより少し上に配置するためにtopを調整 */
+            top: 10px; 
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000; /* ARButtonやタイトルよりも手前に */
+            display: flex;
+            gap: 10px;
+            padding: 8px 15px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 5px;
+            
+            /* 変更点: 初期状態では非表示 */
+            display: none; 
+        }
+        
+        /* AR開始前の画面で表示するダミーセレクター */
+        #model-selector-pre-ar {
             position: absolute;
             top: 60px; /* タイトルの下に配置 */
             left: 50%;
@@ -28,7 +49,9 @@
             background: rgba(0, 0, 0, 0.5);
             border-radius: 5px;
         }
-        #model-selector button {
+
+        /* ボタンの共通スタイル */
+        .model-button {
             padding: 8px 15px;
             font-size: 16px;
             cursor: pointer;
@@ -38,11 +61,11 @@
             border-radius: 5px;
             transition: background-color 0.2s, color 0.2s;
         }
-        #model-selector button:hover {
+        .model-button:hover {
             background-color: rgba(255, 255, 255, 0.2);
         }
         /* 選択中のボタンのスタイル */
-        #model-selector button.selected {
+        .model-button.selected {
             background-color: white;
             color: navy;
             font-weight: bold;
@@ -53,11 +76,19 @@
     <h1 id="title">ARモデル配置シミュレーション</h1>
 
     <div id="model-selector">
-        <button id="select-box" data-index="0">立方体</button>
-        <button id="select-sphere" data-index="1">球</button>
-        <button id="select-cone" data-index="2">円錐</button>
-        <button id="select-torus" data-index="3">トーラス</button>
+        <button id="select-box-ar" class="model-button" data-index="0">立方体</button>
+        <button id="select-sphere-ar" class="model-button" data-index="1">球</button>
+        <button id="select-cone-ar" class="model-button" data-index="2">円錐</button>
+        <button id="select-torus-ar" class="model-button" data-index="3">トーラス</button>
     </div>
+    
+    <div id="model-selector-pre-ar">
+        <button id="select-box-pre" class="model-button" data-index="0">立方体</button>
+        <button id="select-sphere-pre" class="model-button" data-index="1">球</button>
+        <button id="select-cone-pre" class="model-button" data-index="2">円錐</button>
+        <button id="select-torus-pre" class="model-button" data-index="3">トーラス</button>
+    </div>
+
 
     <script type="importmap">
         {
@@ -88,11 +119,9 @@
 
         let previewMesh = null;
         
-        // initとanimateの呼び出しはそのまま
-
-        // --- 変更点 (1): モデル選択関数を引数付きに変更 ---
+        // モデル選択関数
         function selectModel(index) {
-            if (index === selectedModelIndex) return; // 既に選択済みなら何もしない
+            if (index === selectedModelIndex) return;
 
             selectedModelIndex = index;
             console.log(`モデルを切り替えました: ${index}`);
@@ -109,8 +138,10 @@
             updateSelectionUI();
         }
 
+        // UIボタンの選択状態を更新する関数
         function updateSelectionUI() {
-             document.querySelectorAll('#model-selector button').forEach(button => {
+             // AR開始前とARセッション中の両方のセレクターを更新
+             document.querySelectorAll('.model-button').forEach(button => {
                 const index = parseInt(button.getAttribute('data-index'));
                 if (index === selectedModelIndex) {
                     button.classList.add('selected');
@@ -119,7 +150,6 @@
                 }
             });
         }
-        // ---------------------------------------------------
 
         init();
         animate();
@@ -136,10 +166,14 @@
 
             document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local', 'hit-test'] }));
             
-            // ARセッション開始時にタイトルとセレクターを非表示にする
+            // ARセッション開始時
             renderer.xr.addEventListener('sessionstart', () => {
+                // 初めの画面の要素を非表示
                 document.getElementById('title').style.display = 'none';
-                document.getElementById('model-selector').style.display = 'none'; // 追加
+                document.getElementById('model-selector-pre-ar').style.display = 'none';
+                
+                // AR中のセレクターを表示
+                document.getElementById('model-selector').style.display = 'flex';
                 
                 const controllerModelFactory = new XRControllerModelFactory();
 
@@ -169,17 +203,16 @@
                 controller1.addEventListener('selectend', onSelectEnd);
                 controller2.addEventListener('selectstart', onSelectStart);
                 controller2.addEventListener('selectend', onSelectEnd);
-                
-                // --- 変更点 (2): コントローラーボタンによる切り替えを削除 ---
-                // controller1.addEventListener('bbuttondown', onNextModel); // 削除
-                // controller2.addEventListener('ybuttondown', onNextModel); // 削除
-                // ----------------------------------------------------------
             });
             
-            // ARセッション終了時にタイトルとセレクターを再表示する
+            // ARセッション終了時
             renderer.xr.addEventListener('sessionend', () => {
+                // 初めの画面の要素を再表示
                 document.getElementById('title').style.display = 'block';
-                document.getElementById('model-selector').style.display = 'flex'; // 追加
+                document.getElementById('model-selector-pre-ar').style.display = 'flex';
+                
+                // AR中のセレクターを非表示
+                document.getElementById('model-selector').style.display = 'none';
             });
 
             reticle = new THREE.Mesh(
@@ -219,8 +252,8 @@
                 }
             ];
             
-            // --- 変更点 (3): UIボタンにイベントリスナーを追加 ---
-            document.querySelectorAll('#model-selector button').forEach(button => {
+            // AR開始前とARセッション中の両方のボタンにイベントリスナーを設定
+            document.querySelectorAll('.model-button').forEach(button => {
                 button.addEventListener('click', () => {
                     const index = parseInt(button.getAttribute('data-index'));
                     selectModel(index);
@@ -229,14 +262,8 @@
 
             // 最初のモデルの選択とUIの初期化
             selectModel(0); 
-            // ----------------------------------------------------------
         }
         
-        // --- 変更点 (4): 古い onNextModel 関数を削除または更新 (ここではselectModelに一本化) ---
-        // onNextModelをselectModel(index)に置き換えたため、この関数は削除します。
-        // onNextModelは使用しなくなりました。
-        // ---------------------------------------------------------------------------------
-
         function onSelectStart(event) {
             const controller = event.target;
             const tempMatrix = new THREE.Matrix4();
@@ -270,10 +297,6 @@
                     mesh.position.setFromMatrixPosition(reticle.matrix);
                     scene.add(mesh);
                     intersectableObjects.push(mesh);
-                    
-                    // --- 変更点 (5): 配置後のモデル切り替えロジックを削除 ---
-                    // onNextModel(); // 削除: 配置後に次のモデルに自動で切り替えるのをやめる
-                    // -------------------------------------------------------
                     
                     // 配置後、同じモデルが選択された状態を維持し、プレビューメッシュを再生成
                     selectModel(selectedModelIndex);

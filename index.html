@@ -100,7 +100,6 @@
         import * as THREE from 'three';
         import { ARButton } from 'three/addons/webxr/ARButton.js';
         import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
-        // 変更点1: GLTFLoaderをインポート
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
         let camera, scene, renderer;
@@ -116,16 +115,15 @@
         
         let selectedModelIndex = 0;
         let modelOptions;
-        // 変更点2: モデルローダーとキャッシュを定義
+
         const loader = new GLTFLoader();
         const modelCache = [];
-        let currentModelObject = null; // 現在選択中のモデルのTHREE.Object3D
-
+        let currentModelObject = null;
         let previewMesh = null;
         
         // モデル選択関数
         function selectModel(index) {
-            if (index === selectedModelIndex) return;
+            if (index === selectedModelIndex && previewMesh) return; // 既に選択済みかつプレビューがあれば何もしない
 
             selectedModelIndex = index;
             console.log(`モデルを切り替えました: ${index}`);
@@ -206,6 +204,11 @@
 
         // プレビューメッシュを設定する関数
         function setupPreviewMesh(modelObject) {
+            // 既にプレビューメッシュが存在する場合は削除（selectModelから呼ばれた場合）
+            if (previewMesh) {
+                scene.remove(previewMesh);
+            }
+            
             currentModelObject = modelObject;
             
             // プレビュー表示のために、モデル全体を透明な半透明マテリアルで包む
@@ -217,7 +220,8 @@
             currentModelObject.traverse((node) => {
                 if (node.isMesh) {
                     // 既存のマテリアルを半透明化するために新しいマテリアルを作成
-                    const originalMaterial = node.material;
+                    // ロードしたモデルのマテリアルをクローンして半透明化
+                    const originalMaterial = node.material.clone();
                     const previewMaterial = originalMaterial.clone();
                     previewMaterial.transparent = true;
                     previewMaterial.opacity = 0.5;
@@ -248,7 +252,7 @@
         function init() {
             scene = new THREE.Scene();
             
-            // 照明を追加 (GLBモデルのマテリアルを正しく表示するため)
+            // 照明を追加
             const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 3);
             light.position.set(0.5, 1, 0.25);
             scene.add(light);
@@ -325,11 +329,10 @@
 
             window.addEventListener('resize', onWindowResize);
             
-            // 変更点3: GLBモデルのパスを設定
             modelOptions = [
                 {
                     name: 'AIイス',
-                    path: 'AIイス.glb',
+                    path: 'AIis.glb',
                 },
                 {
                     name: 'フォトグラメトリイス',
@@ -371,35 +374,36 @@
             } else {
                 // モデルの配置
                 if (reticle.visible && currentModelObject) {
-                    // 現在のプレビューメッシュを削除
+                    
+                    // 1. プレビューメッシュ（半透明のObject3Dラッパー）をシーンから削除
                     if (previewMesh) {
                         scene.remove(previewMesh);
-                        previewMesh = null;
+                        previewMesh = null; // プレビューメッシュをnullに設定
                     }
                     
-                    // キャッシュから新しいインスタンスを作成
+                    // 2. キャッシュから新しいインスタンスを作成（最終配置モデル）
                     const finalModel = modelCache[selectedModelIndex].clone();
                     
-                    // マテリアルを非透明のオリジナルに戻す
+                    // 3. マテリアルを非透明のオリジナルに戻す
                     finalModel.traverse((node) => {
                          if (node.isMesh) {
-                            // キャッシュされたオブジェクトのオリジナルマテリアルを複製して使用
-                            node.material = node.material.clone().setValues({ transparent: false, opacity: 1 });
+                            // GLBモデルは複数のメッシュを持つことがあるため、マテリアルを複製し、不透明な設定を適用する
+                            const originalMaterial = node.material.clone();
+                            originalMaterial.transparent = false;
+                            originalMaterial.opacity = 1;
+                            node.material = originalMaterial;
                         }
                     });
                     
-                    // 配置
+                    // 4. 配置
                     finalModel.position.setFromMatrixPosition(reticle.matrix);
                     scene.add(finalModel);
                     intersectableObjects.push(finalModel);
                     
                     console.log(`モデルを配置しました: ${modelOptions[selectedModelIndex].name}`);
 
-                    // 配置後、同じモデルが選択された状態を維持し、プレビューメッシュを再生成
-                    // ただし、この時点で既にキャッシュにあるので、selectModel(index)ではなく、setupPreviewMeshを直接呼び出す
-                    if (modelCache[selectedModelIndex]) {
-                         setupPreviewMesh(modelCache[selectedModelIndex].clone());
-                    }
+                    // 5. 配置後、同じモデルを再選択し、次のプレビューメッシュの生成を非同期的に開始
+                    selectModel(selectedModelIndex);
                 }
             }
         }

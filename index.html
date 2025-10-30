@@ -11,10 +11,10 @@
 <body>
     <script type="importmap">
         {
-          "imports": {
-            "three": "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js",
-            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.155.0/examples/jsm/"
-          }
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.155.0/examples/jsm/"
+            }
         }
     </script>
     <script type="module">
@@ -28,13 +28,16 @@
         let hitTestSource = null;
         let hitTestSourceRequested = false;
 
-        // キューブを管理するための配列
         const intersectableObjects = [];
 
-        // つかんでいるキューブを管理するための変数
         let grabbedObject = null;
-        let grabbingController = null; // どのコントローラーでつかんだかを追跡
+        let grabbingController = null;
+        
+        let selectedModelIndex = 0;
+        let modelOptions;
 
+        let previewMesh = null;
+        
         init();
         animate();
 
@@ -53,14 +56,12 @@
             renderer.xr.addEventListener('sessionstart', () => {
                 const controllerModelFactory = new XRControllerModelFactory();
 
-                // 右手コントローラーを取得 (インデックス 0)
                 controller1 = renderer.xr.getController(0);
                 scene.add(controller1);
                 const controllerGrip1 = renderer.xr.getControllerGrip(0);
                 controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
                 scene.add(controllerGrip1);
 
-                // レイキャストを可視化するための線
                 const lineGeometry = new THREE.BufferGeometry().setFromPoints([
                     new THREE.Vector3(0, 0, 0),
                     new THREE.Vector3(0, 0, -5)
@@ -69,7 +70,6 @@
                 const line1 = new THREE.Line(lineGeometry, lineMaterial);
                 controller1.add(line1);
 
-                // 左手コントローラーを取得 (インデックス 1)
                 controller2 = renderer.xr.getController(1);
                 scene.add(controller2);
                 const controllerGrip2 = renderer.xr.getControllerGrip(1);
@@ -78,11 +78,13 @@
                 const line2 = new THREE.Line(lineGeometry, lineMaterial);
                 controller2.add(line2);
 
-                // 両方のコントローラーにイベントリスナーを追加
                 controller1.addEventListener('selectstart', onSelectStart);
                 controller1.addEventListener('selectend', onSelectEnd);
                 controller2.addEventListener('selectstart', onSelectStart);
                 controller2.addEventListener('selectend', onSelectEnd);
+
+                controller1.addEventListener('bbuttondown', onNextModel);
+                controller2.addEventListener('ybuttondown', onNextModel);
             });
 
             reticle = new THREE.Mesh(
@@ -94,6 +96,44 @@
             scene.add(reticle);
 
             window.addEventListener('resize', onWindowResize);
+            
+            modelOptions = [
+                {
+                    geometry: new THREE.BoxGeometry(0.3, 0.3, 0.3),
+                    material: new THREE.MeshNormalMaterial(),
+                    previewMaterial: new THREE.MeshNormalMaterial({ transparent: true, opacity: 0.5 })
+                },
+                {
+                    geometry: new THREE.SphereGeometry(0.25, 32, 16),
+                    material: new THREE.MeshBasicMaterial({ color: 0xff0000 }),
+                    previewMaterial: new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.5 })
+                },
+                {
+                    geometry: new THREE.ConeGeometry(0.2, 0.4, 32),
+                    material: new THREE.MeshLambertMaterial({ color: 0x00ff00 }),
+                    previewMaterial: new THREE.MeshLambertMaterial({ color: 0x00ff00, transparent: true, opacity: 0.5 })
+                },
+                {
+                    geometry: new THREE.TorusGeometry(0.2, 0.05, 16, 100),
+                    material: new THREE.MeshBasicMaterial({ color: 0x0000ff }),
+                    previewMaterial: new THREE.MeshBasicMaterial({ color: 0x0000ff, transparent: true, opacity: 0.5 })
+                }
+            ];
+
+            // 最初のモデルのプレビューを生成
+            onNextModel();
+        }
+        
+        function onNextModel() {
+            selectedModelIndex = (selectedModelIndex + 1) % modelOptions.length;
+            console.log(`次のモデルに切り替えました: ${selectedModelIndex}`);
+            
+            if (previewMesh) {
+                scene.remove(previewMesh);
+            }
+            const selected = modelOptions[selectedModelIndex];
+            previewMesh = new THREE.Mesh(selected.geometry, selected.previewMaterial);
+            scene.add(previewMesh);
         }
 
         function onSelectStart(event) {
@@ -105,28 +145,33 @@
             raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
             raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
-            // シーン内のキューブに対して交差判定
             const intersects = raycaster.intersectObjects(intersectableObjects);
 
             if (intersects.length > 0) {
                 const intersectedObject = intersects[0].object;
                 
-                // キューブを「つかんだ」状態にする
                 grabbedObject = intersectedObject;
                 grabbingController = controller;
                 
                 console.log('キューブをつかみました！');
 
             } else {
-                // 何にも当たらない場合、新しいキューブを生成
                 if (reticle.visible) {
-                    const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-                    const material = new THREE.MeshNormalMaterial();
-                    const mesh = new THREE.Mesh(geometry, material);
+                    // 現在のプレビューメッシュを削除
+                    if (previewMesh) {
+                        scene.remove(previewMesh);
+                    }
+                    
+                    const selectedModel = modelOptions[selectedModelIndex];
+                    
+                    const mesh = new THREE.Mesh(selectedModel.geometry, selectedModel.material);
                     
                     mesh.position.setFromMatrixPosition(reticle.matrix);
                     scene.add(mesh);
-                    intersectableObjects.push(mesh); // 配列に追加
+                    intersectableObjects.push(mesh);
+                    
+                    // 次のモデルのプレビューを準備
+                    onNextModel();
                 }
             }
         }
@@ -174,19 +219,27 @@
                         const referenceSpace = renderer.xr.getReferenceSpace();
                         reticle.visible = true;
                         reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
+                        
+                        if (previewMesh) {
+                            previewMesh.position.setFromMatrixPosition(reticle.matrix);
+                            previewMesh.visible = true;
+                        }
                     } else {
                         reticle.visible = false;
+                        if (previewMesh) {
+                            previewMesh.visible = false;
+                        }
                     }
                 }
 
-                // --- つかんでいるキューブの平面追従処理 ---
                 if (grabbedObject && reticle.visible) {
                     grabbedObject.position.setFromMatrixPosition(reticle.matrix);
                 }
-                // --- 追従処理 終わり ---
             }
             renderer.render(scene, camera);
         }
     </script>
 </body>
 </html>
+
+

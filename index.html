@@ -1,18 +1,23 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <title>ARモデル配置アプリ</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {
-            margin: 0;
-            background-color: #1A202C;
-            color: white;
-            font-family: sans-serif;
-            overflow: hidden;
-        }
-        canvas { display: block; }
+    <meta charset="utf-8">
+    <title>WebXR Both Controllers - Plane-following Move</title>
+    <style>
+        body { 
+            margin: 0; 
+            background-color: #333333; /* 濃いグレーの背景を維持 */
+            color: white; 
+        }
+        canvas { display: block; }
+
+        /* 🎨 ARButtonのスタイルを上書き */
+        /* ARButtonが生成する要素（通常はdiv > button）のボタンを見やすい紺色に変更 */
+        button {
+            background-color: #191970 !important; /* 紺色 (Midnight Blue) */
+            color: white !important; /* 文字を白に */
+            border: 2px solid white !important; /* 白い枠線でさらに目立たせる */
+        }
     </style>
 </head>
 <body>
@@ -248,4 +253,3 @@
     </script>
 </body>
 </html>
-

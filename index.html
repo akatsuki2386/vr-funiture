@@ -120,10 +120,13 @@
         const modelCache = [];
         let currentModelObject = null;
         let previewMesh = null;
+
+        // 目標とする椅子の高さ (メートル)
+        const TARGET_HEIGHT = 0.79; 
         
         // モデル選択関数
         function selectModel(index) {
-            if (index === selectedModelIndex && previewMesh) return; // 既に選択済みかつプレビューがあれば何もしない
+            if (index === selectedModelIndex && previewMesh) return;
 
             selectedModelIndex = index;
             console.log(`モデルを切り替えました: ${index}`);
@@ -164,12 +167,19 @@
                 function (gltf) {
                     const loadedModel = gltf.scene;
                     
-                    // モデルの大きさを調整（例: 0.5mスケールに）
+                    // --- 変更点: 高さを0.79mに調整 ---
                     const box = new THREE.Box3().setFromObject(loadedModel);
                     const size = box.getSize(new THREE.Vector3());
-                    const maxDim = Math.max(size.x, size.y, size.z);
-                    const scale = 0.5 / maxDim; // 最大寸法が0.5になるようにスケーリング
+                    
+                    // モデルの現在の高さ (Y軸のサイズ)
+                    const currentHeight = size.y; 
+                    
+                    // 目標とする高さに基づいたスケーリング係数を計算
+                    const scale = TARGET_HEIGHT / currentHeight; 
+                    
+                    // スケールを適用
                     loadedModel.scale.set(scale, scale, scale);
+                    // ------------------------------------
                     
                     // キャッシュに保存
                     modelCache[index] = loadedModel;
@@ -220,7 +230,6 @@
             currentModelObject.traverse((node) => {
                 if (node.isMesh) {
                     // 既存のマテリアルを半透明化するために新しいマテリアルを作成
-                    // ロードしたモデルのマテリアルをクローンして半透明化
                     const originalMaterial = node.material.clone();
                     const previewMaterial = originalMaterial.clone();
                     previewMaterial.transparent = true;
@@ -475,4 +484,3 @@
     </script>
 </body>
 </html>
-

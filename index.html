@@ -126,7 +126,6 @@
         
         // モデル選択関数
         function selectModel(index) {
-            // ARセッション中でない場合、既にプレビューがあるなら処理をスキップ
             if (!renderer.xr.isPresenting && previewMesh) return;
             
             if (index === selectedModelIndex && previewMesh) return;
@@ -350,26 +349,24 @@
                 // AR中のセレクターを非表示
                 document.getElementById('model-selector').style.display = 'none';
 
-                // --- 修正点: シーンをクリアしてまっさらな状態にする ---
-                
-                // 1. レティクルを非表示にする
+                // シーンをクリアしてまっさらな状態にする
                 reticle.visible = false;
                 
-                // 2. プレビューメッシュがあれば削除
                 if (previewMesh) {
                     scene.remove(previewMesh);
                     previewMesh = null;
                 }
                 currentModelObject = null;
                 
-                // 3. 配置済みのすべてのモデルをシーンから削除
+                // 配置済みのすべてのモデルをシーンから削除
                 intersectableObjects.forEach(obj => {
                     scene.remove(obj);
                 });
-                // 4. 配列を空にする
                 intersectableObjects.length = 0; 
-
-                // ----------------------------------------------------
+                
+                // つかんでいる状態をリセット
+                grabbedObject = null;
+                grabbingController = null;
             });
 
             reticle = new THREE.Mesh(
@@ -414,15 +411,26 @@
             raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
             raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
-            const intersects = raycaster.intersectObjects(intersectableObjects);
+            const intersects = raycaster.intersectObjects(intersectableObjects, true); // ⭐ 修正点: 子要素もチェックする (trueを追加)
 
             if (intersects.length > 0) {
-                const intersectedObject = intersects[0].object;
+                // 交差したオブジェクトがGLBモデルのどの部分であっても、最上位の親オブジェクト（配置したモデル）を見つける
+                let intersectedObject = intersects[0].object;
+                while (intersectedObject.parent && intersectableObjects.includes(intersectedObject.parent) === false) {
+                     // intersectableObjectsに含まれているオブジェクトを親とする場合があるため、
+                     // intersectableObjectsの中に含まれるオブジェクトが親になければ、親をたどる
+                     if (intersectableObjects.includes(intersectedObject)) break; // 既に最上位オブジェクトなら停止
+                     intersectedObject = intersectedObject.parent;
+                }
                 
-                grabbedObject = intersectedObject;
-                grabbingController = controller;
-                
-                console.log('モデルをつかみました！');
+                if (intersectableObjects.includes(intersectedObject)) {
+                    grabbedObject = intersectedObject;
+                    grabbingController = controller;
+                    
+                    // ⭐ デバッグ用: モデルをつかんだことを確認
+                    console.log('モデルをつかみました！', grabbedObject.name || grabbedObject.type);
+                }
+
 
             } else {
                 // モデルの配置
@@ -431,7 +439,7 @@
                     // 1. プレビューメッシュ（半透明のObject3Dラッパー）をシーンから削除
                     if (previewMesh) {
                         scene.remove(previewMesh);
-                        previewMesh = null; // プレビューメッシュをnullに設定
+                        previewMesh = null;
                     }
                     
                     // 2. キャッシュから新しいインスタンスを作成（最終配置モデル）
@@ -440,7 +448,6 @@
                     // 3. マテリアルを非透明のオリジナルに戻す
                     finalModel.traverse((node) => {
                          if (node.isMesh) {
-                            // GLBモデルは複数のメッシュを持つことがあるため、マテリアルを複製し、不透明な設定を適用する
                             const originalMaterial = node.material.clone();
                             originalMaterial.transparent = false;
                             originalMaterial.opacity = 1;
@@ -450,12 +457,15 @@
                     
                     // 4. 配置
                     finalModel.position.setFromMatrixPosition(reticle.matrix);
+                    // ⭐ モデルを識別できるように名前を設定 (デバッグ用)
+                    finalModel.name = modelOptions[selectedModelIndex].name + ' (Placed)';
+                    
                     scene.add(finalModel);
                     intersectableObjects.push(finalModel);
                     
-                    console.log(`モデルを配置しました: ${modelOptions[selectedModelIndex].name}`);
+                    console.log(`モデルを配置しました: ${finalModel.name}`);
 
-                    // 5. 配置後、同じモデルを再選択し、次のプレビューメッシュの生成を非同期的に開始
+                    // 5. 配置後、次のプレビューメッシュの生成を非同期的に開始
                     if (renderer.xr.isPresenting) {
                         selectModel(selectedModelIndex);
                     }
@@ -510,12 +520,10 @@
                         // プレビューメッシュが存在し、現在表示されているモデルであれば位置を更新
                         if (previewMesh) {
                             previewMesh.position.setFromMatrixPosition(reticle.matrix);
-                            // reticleがvisibleになったらpreviewMeshもvisibleにする
                             if (!previewMesh.visible) previewMesh.visible = true;
                         }
                     } else {
                         reticle.visible = false;
-                        // reticleが非表示になったらpreviewMeshも非表示にする
                         if (previewMesh) {
                             previewMesh.visible = false;
                         }

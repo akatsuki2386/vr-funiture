@@ -31,6 +31,7 @@
             background: rgba(0, 0, 0, 0.5);
             border-radius: 5px;
             display: none; 
+            white-space: nowrap; /* ⭐ 修正点: 強制改行を防ぐ */
         }
         
         /* AR開始前の画面で表示するセレクター */
@@ -45,6 +46,7 @@
             padding: 10px;
             background: rgba(0, 0, 0, 0.5);
             border-radius: 5px;
+            white-space: nowrap; /* ⭐ 修正点: 強制改行を防ぐ */
         }
 
         /* ボタンの共通スタイル */
@@ -57,6 +59,7 @@
             color: white;
             border-radius: 5px;
             transition: background-color 0.2s, color 0.2s;
+            min-width: 120px; /* ⭐ 修正点: 十分な幅を確保 */
         }
         .model-button:hover {
             background-color: rgba(255, 255, 255, 0.2);
@@ -411,14 +414,12 @@
             raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
             raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
-            const intersects = raycaster.intersectObjects(intersectableObjects, true); // ⭐ 修正点: 子要素もチェックする (trueを追加)
+            const intersects = raycaster.intersectObjects(intersectableObjects, true);
 
             if (intersects.length > 0) {
                 // 交差したオブジェクトがGLBモデルのどの部分であっても、最上位の親オブジェクト（配置したモデル）を見つける
                 let intersectedObject = intersects[0].object;
                 while (intersectedObject.parent && intersectableObjects.includes(intersectedObject.parent) === false) {
-                     // intersectableObjectsに含まれているオブジェクトを親とする場合があるため、
-                     // intersectableObjectsの中に含まれるオブジェクトが親になければ、親をたどる
                      if (intersectableObjects.includes(intersectedObject)) break; // 既に最上位オブジェクトなら停止
                      intersectedObject = intersectedObject.parent;
                 }
@@ -427,7 +428,6 @@
                     grabbedObject = intersectedObject;
                     grabbingController = controller;
                     
-                    // ⭐ デバッグ用: モデルをつかんだことを確認
                     console.log('モデルをつかみました！', grabbedObject.name || grabbedObject.type);
                 }
 
@@ -457,7 +457,6 @@
                     
                     // 4. 配置
                     finalModel.position.setFromMatrixPosition(reticle.matrix);
-                    // ⭐ モデルを識別できるように名前を設定 (デバッグ用)
                     finalModel.name = modelOptions[selectedModelIndex].name + ' (Placed)';
                     
                     scene.add(finalModel);
@@ -517,7 +516,6 @@
                         reticle.visible = true;
                         reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
                         
-                        // プレビューメッシュが存在し、現在表示されているモデルであれば位置を更新
                         if (previewMesh) {
                             previewMesh.position.setFromMatrixPosition(reticle.matrix);
                             if (!previewMesh.visible) previewMesh.visible = true;
@@ -531,7 +529,6 @@
                 }
 
                 if (grabbedObject && reticle.visible) {
-                    // つかんだモデルをレティクルの位置に移動（地面追従）
                     grabbedObject.position.setFromMatrixPosition(reticle.matrix);
                 }
             }

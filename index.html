@@ -18,28 +18,25 @@
             font-size: 24px;
         }
 
-        /* モデル選択UIのスタイル */
+        /* モデル選択UIのスタイル (ARセッション中) */
         #model-selector {
             position: absolute;
-            /* ARボタンの高さより少し上に配置するためにtopを調整 */
             top: 10px; 
             left: 50%;
             transform: translateX(-50%);
-            z-index: 1000; /* ARButtonやタイトルよりも手前に */
+            z-index: 1000;
             display: flex;
             gap: 10px;
             padding: 8px 15px;
             background: rgba(0, 0, 0, 0.5);
             border-radius: 5px;
-            
-            /* 変更点: 初期状態では非表示 */
             display: none; 
         }
         
-        /* AR開始前の画面で表示するダミーセレクター */
+        /* AR開始前の画面で表示するセレクター */
         #model-selector-pre-ar {
             position: absolute;
-            top: 60px; /* タイトルの下に配置 */
+            top: 60px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 1;
@@ -70,23 +67,24 @@
             color: navy;
             font-weight: bold;
         }
+        /* ロード中を示すスタイル */
+        .model-button.loading {
+            cursor: wait;
+            opacity: 0.5;
+        }
     </style>
 </head>
 <body>
     <h1 id="title">ARモデル配置シミュレーション</h1>
 
     <div id="model-selector">
-        <button id="select-box-ar" class="model-button" data-index="0">立方体</button>
-        <button id="select-sphere-ar" class="model-button" data-index="1">球</button>
-        <button id="select-cone-ar" class="model-button" data-index="2">円錐</button>
-        <button id="select-torus-ar" class="model-button" data-index="3">トーラス</button>
+        <button id="select-ai" class="model-button" data-index="0">生成AIイス</button>
+        <button id="select-photogrammetry" class="model-button" data-index="1">フォトグラメトリイス</button>
     </div>
     
     <div id="model-selector-pre-ar">
-        <button id="select-box-pre" class="model-button" data-index="0">立方体</button>
-        <button id="select-sphere-pre" class="model-button" data-index="1">球</button>
-        <button id="select-cone-pre" class="model-button" data-index="2">円錐</button>
-        <button id="select-torus-pre" class="model-button" data-index="3">トーラス</button>
+        <button id="select-ai-pre" class="model-button" data-index="0">生成AIイス</button>
+        <button id="select-photogrammetry-pre" class="model-button" data-index="1">フォトグラメトリイス</button>
     </div>
 
 
@@ -102,6 +100,8 @@
         import * as THREE from 'three';
         import { ARButton } from 'three/addons/webxr/ARButton.js';
         import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+        // 変更点1: GLTFLoaderをインポート
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
         let camera, scene, renderer;
         let controller1, controller2;
@@ -116,6 +116,10 @@
         
         let selectedModelIndex = 0;
         let modelOptions;
+        // 変更点2: モデルローダーとキャッシュを定義
+        const loader = new GLTFLoader();
+        const modelCache = [];
+        let currentModelObject = null; // 現在選択中のモデルのTHREE.Object3D
 
         let previewMesh = null;
         
@@ -126,16 +130,103 @@
             selectedModelIndex = index;
             console.log(`モデルを切り替えました: ${index}`);
             
-            // プレビューメッシュを更新
+            // プレビューメッシュ（現在のモデル）をシーンから削除
             if (previewMesh) {
                 scene.remove(previewMesh);
+                previewMesh = null;
             }
-            const selected = modelOptions[selectedModelIndex];
-            previewMesh = new THREE.Mesh(selected.geometry, selected.previewMaterial);
-            scene.add(previewMesh);
+            // 選択中のGLBモデルオブジェクトをクリア
+            currentModelObject = null;
 
-            // UIボタンの選択状態を更新
+            // UIボタンの選択状態を更新し、ロードを開始
             updateSelectionUI();
+            loadAndSetModel(index);
+        }
+
+        // GLBモデルを読み込み、キャッシュし、プレビューを設定する関数
+        function loadAndSetModel(index) {
+            const modelConfig = modelOptions[index];
+
+            // キャッシュにモデルがあればそれを使用
+            if (modelCache[index]) {
+                const cachedModel = modelCache[index].clone();
+                setupPreviewMesh(cachedModel);
+                return;
+            }
+            
+            // ロード中のUI状態を設定
+            document.querySelectorAll(`.model-button[data-index="${index}"]`).forEach(button => {
+                button.classList.add('loading');
+                button.disabled = true;
+            });
+
+            // GLBモデルを読み込み
+            loader.load(
+                modelConfig.path,
+                function (gltf) {
+                    const loadedModel = gltf.scene;
+                    
+                    // モデルの大きさを調整（例: 0.5mスケールに）
+                    const box = new THREE.Box3().setFromObject(loadedModel);
+                    const size = box.getSize(new THREE.Vector3());
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const scale = 0.5 / maxDim; // 最大寸法が0.5になるようにスケーリング
+                    loadedModel.scale.set(scale, scale, scale);
+                    
+                    // キャッシュに保存
+                    modelCache[index] = loadedModel;
+                    
+                    // ロード完了後のUI状態を解除
+                    document.querySelectorAll('.model-button').forEach(button => {
+                         button.classList.remove('loading');
+                         button.disabled = false;
+                    });
+                    
+                    // 現在選択中のモデルであればプレビューを設定
+                    if (selectedModelIndex === index) {
+                        const modelInstance = loadedModel.clone();
+                        setupPreviewMesh(modelInstance);
+                    }
+                },
+                function (xhr) {
+                    // ロード進捗
+                    console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+                },
+                function (error) {
+                    console.error('An error happened loading the model:', error);
+                    alert(`モデルのロードに失敗しました: ${modelConfig.name}`);
+                    // エラー時のUI状態を解除
+                    document.querySelectorAll('.model-button').forEach(button => {
+                         button.classList.remove('loading');
+                         button.disabled = false;
+                    });
+                }
+            );
+        }
+
+        // プレビューメッシュを設定する関数
+        function setupPreviewMesh(modelObject) {
+            currentModelObject = modelObject;
+            
+            // プレビュー表示のために、モデル全体を透明な半透明マテリアルで包む
+            // GLBモデル全体をラップする透明なObject3Dを作成
+            previewMesh = new THREE.Object3D(); 
+            previewMesh.add(currentModelObject);
+            
+            // 半透明の表現
+            currentModelObject.traverse((node) => {
+                if (node.isMesh) {
+                    // 既存のマテリアルを半透明化するために新しいマテリアルを作成
+                    const originalMaterial = node.material;
+                    const previewMaterial = originalMaterial.clone();
+                    previewMaterial.transparent = true;
+                    previewMaterial.opacity = 0.5;
+                    node.material = previewMaterial;
+                }
+            });
+
+            // ARシーンに追加
+            scene.add(previewMesh);
         }
 
         // UIボタンの選択状態を更新する関数
@@ -156,6 +247,15 @@
 
         function init() {
             scene = new THREE.Scene();
+            
+            // 照明を追加 (GLBモデルのマテリアルを正しく表示するため)
+            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 3);
+            light.position.set(0.5, 1, 0.25);
+            scene.add(light);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(0, 5, 5);
+            scene.add(directionalLight);
+
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -225,30 +325,15 @@
 
             window.addEventListener('resize', onWindowResize);
             
+            // 変更点3: GLBモデルのパスを設定
             modelOptions = [
                 {
-                    name: 'Box',
-                    geometry: new THREE.BoxGeometry(0.3, 0.3, 0.3),
-                    material: new THREE.MeshNormalMaterial(),
-                    previewMaterial: new THREE.MeshNormalMaterial({ transparent: true, opacity: 0.5 })
+                    name: 'AIイス',
+                    path: 'AIイス.glb',
                 },
                 {
-                    name: 'Sphere',
-                    geometry: new THREE.SphereGeometry(0.25, 32, 16),
-                    material: new THREE.MeshBasicMaterial({ color: 0xff0000 }),
-                    previewMaterial: new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.5 })
-                },
-                {
-                    name: 'Cone',
-                    geometry: new THREE.ConeGeometry(0.2, 0.4, 32),
-                    material: new THREE.MeshLambertMaterial({ color: 0x00ff00 }),
-                    previewMaterial: new THREE.MeshLambertMaterial({ color: 0x00ff00, transparent: true, opacity: 0.5 })
-                },
-                {
-                    name: 'Torus',
-                    geometry: new THREE.TorusGeometry(0.2, 0.05, 16, 100),
-                    material: new THREE.MeshBasicMaterial({ color: 0x0000ff }),
-                    previewMaterial: new THREE.MeshBasicMaterial({ color: 0x0000ff, transparent: true, opacity: 0.5 })
+                    name: 'フォトグラメトリイス',
+                    path: 'photographchair.glb',
                 }
             ];
             
@@ -260,7 +345,7 @@
                 });
             });
 
-            // 最初のモデルの選択とUIの初期化
+            // 最初のモデルの選択とロードを開始
             selectModel(0); 
         }
         
@@ -281,25 +366,40 @@
                 grabbedObject = intersectedObject;
                 grabbingController = controller;
                 
-                console.log('キューブをつかみました！');
+                console.log('モデルをつかみました！');
 
             } else {
-                if (reticle.visible) {
+                // モデルの配置
+                if (reticle.visible && currentModelObject) {
                     // 現在のプレビューメッシュを削除
                     if (previewMesh) {
                         scene.remove(previewMesh);
+                        previewMesh = null;
                     }
                     
-                    const selectedModel = modelOptions[selectedModelIndex];
+                    // キャッシュから新しいインスタンスを作成
+                    const finalModel = modelCache[selectedModelIndex].clone();
                     
-                    const mesh = new THREE.Mesh(selectedModel.geometry, selectedModel.material);
+                    // マテリアルを非透明のオリジナルに戻す
+                    finalModel.traverse((node) => {
+                         if (node.isMesh) {
+                            // キャッシュされたオブジェクトのオリジナルマテリアルを複製して使用
+                            node.material = node.material.clone().setValues({ transparent: false, opacity: 1 });
+                        }
+                    });
                     
-                    mesh.position.setFromMatrixPosition(reticle.matrix);
-                    scene.add(mesh);
-                    intersectableObjects.push(mesh);
+                    // 配置
+                    finalModel.position.setFromMatrixPosition(reticle.matrix);
+                    scene.add(finalModel);
+                    intersectableObjects.push(finalModel);
                     
+                    console.log(`モデルを配置しました: ${modelOptions[selectedModelIndex].name}`);
+
                     // 配置後、同じモデルが選択された状態を維持し、プレビューメッシュを再生成
-                    selectModel(selectedModelIndex);
+                    // ただし、この時点で既にキャッシュにあるので、selectModel(index)ではなく、setupPreviewMeshを直接呼び出す
+                    if (modelCache[selectedModelIndex]) {
+                         setupPreviewMesh(modelCache[selectedModelIndex].clone());
+                    }
                 }
             }
         }
@@ -308,7 +408,7 @@
             if (grabbedObject) {
                 grabbedObject = null;
                 grabbingController = null;
-                console.log('キューブを離しました！');
+                console.log('モデルを離しました！');
             }
         }
 
@@ -349,6 +449,7 @@
                         reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
                         
                         if (previewMesh) {
+                            // プレビューメッシュをレティクルの位置に移動
                             previewMesh.position.setFromMatrixPosition(reticle.matrix);
                             previewMesh.visible = true;
                         }
@@ -361,6 +462,7 @@
                 }
 
                 if (grabbedObject && reticle.visible) {
+                    // つかんだモデルをレティクルの位置に移動（地面追従）
                     grabbedObject.position.setFromMatrixPosition(reticle.matrix);
                 }
             }

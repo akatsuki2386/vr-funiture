@@ -2,13 +2,24 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR Both Controllers - Plane-following Move</title>
+    <title>ARモデル配置シミュレーション</title>
     <style>
-        body { margin: 0; background-color: navy; }
+        body { margin: 0; background-color: navy; color: white; text-align: center; font-family: sans-serif; }
         canvas { display: block; }
+        /* AR開始ボタンの上にタイトルが表示されるようにする */
+        #title {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            z-index: 1; /* ARButtonより手前に来るように */
+            margin: 0;
+            padding: 0;
+            font-size: 24px;
+        }
     </style>
 </head>
 <body>
+    <h1 id="title">ARモデル配置シミュレーション</h1>
     <script type="importmap">
         {
             "imports": {
@@ -52,8 +63,11 @@
             document.body.appendChild(renderer.domElement);
 
             document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['local', 'hit-test'] }));
-
+            
+            // ARセッション開始時にタイトルを非表示にする
             renderer.xr.addEventListener('sessionstart', () => {
+                document.getElementById('title').style.display = 'none';
+                
                 const controllerModelFactory = new XRControllerModelFactory();
 
                 controller1 = renderer.xr.getController(0);
@@ -85,6 +99,11 @@
 
                 controller1.addEventListener('bbuttondown', onNextModel);
                 controller2.addEventListener('ybuttondown', onNextModel);
+            });
+            
+            // ARセッション終了時にタイトルを再表示する
+            renderer.xr.addEventListener('sessionend', () => {
+                document.getElementById('title').style.display = 'block';
             });
 
             reticle = new THREE.Mesh(
